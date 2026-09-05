@@ -4,7 +4,7 @@
   --ink-3: #98a2b3;
   --line: #e4e7ec;
   --line-2: #eaecf0;
-  --bg: #f7f8fa;
+  --bg: #eaf2fc;
   --card: #ffffff;
   --blue: #2a5bd7;
   --blue-lt: #eaf0ff;
@@ -38,9 +38,8 @@ a { color: var(--blue); text-decoration: none; }
   padding: 24px;
 }
 .auth-shell.worker-auth {
-  background: linear-gradient(160deg, #12326b 0%, #2a5bd7 55%, #4f7fe8 100%);
+  background: var(--bg);
 }
-.auth-shell.worker-auth .auth-card { box-shadow: 0 12px 32px rgba(16,24,40,.25); }
 .auth-card {
   width: 100%;
   max-width: 380px;
