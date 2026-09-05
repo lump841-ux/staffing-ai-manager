@@ -10,8 +10,8 @@ const DEFAULT_CATEGORIES = [
   { key: 'calls_made', label: 'Calls made', description: 'Outbound calls to prospects or clients' },
   { key: 'contacts_made', label: 'Contacts made', description: 'Calls that reached a real conversation' },
   { key: 'leads_generated', label: 'Leads generated', description: 'New candidate or client leads' },
-  { key: 'applications', label: 'Applications', description: 'Candidate applications received' },
-  { key: 'interviews', label: 'Interviews', description: 'Interviews conducted' },
+  { key: 'applications', label: 'Contracts', description: 'Candidate contracts received' },
+  { key: 'interviews', label: 'Meetings', description: 'Meetings conducted' },
   { key: 'placements', label: 'Placements', description: 'Successful placements made' },
   { key: 'new_accounts', label: 'New accounts', description: 'Brand-new client accounts opened' },
   { key: 'follow_ups', label: 'Follow-ups', description: 'Follow-up touches on existing leads or clients' },
@@ -59,7 +59,7 @@ async function run() {
 
   const { rows: orgRows } = await db.query(
     `INSERT INTO organizations (name) VALUES ($1) RETURNING id`,
-    ['Summit Staffing Group']
+    ['Only A Job — Staffing Agencies']
   );
   const orgId = orgRows[0].id;
 
@@ -165,10 +165,10 @@ async function run() {
   await db.query(
     `INSERT INTO manager_tasks (organization_id, manager_id, related_worker_id, title, due_date, source)
      VALUES ($1, $2, $3, $4, $5, 'manual')`,
-    [orgId, managerId, mariaId, 'Check in with Maria about placement/interview mismatch', today]
+    [orgId, managerId, mariaId, 'Check in with Maria about placement/meeting mismatch', today]
   );
 
-  console.log('Seeded demo organization "Summit Staffing Group".');
+  console.log('Seeded demo organization "Only A Job — Staffing Agencies".');
   console.log('Manager login: manager@summitstaffing.demo / manager123');
   console.log('Worker logins (any of):');
   for (const w of workerIds) console.log(`  ${w.email} / worker123  (${w.name})`);

@@ -45,13 +45,13 @@ async function runChecks(orgId, dailyReportId, workerId, reportDate, valuesByCat
     }
   }
 
-  // Rule 2: placements with no interview activity.
+  // Rule 2: placements with no meeting activity.
   const placements = val('placements');
   const interviews = val('interviews');
   if (placements != null && placements > 0 && (interviews == null || interviews === 0)) {
     await insertFlag(
       orgId, dailyReportId, workerId, 'placements_no_interviews',
-      `${placements} placement${placements === 1 ? '' : 's'} reported, but no interview activity logged the same day.`
+      `${placements} placement${placements === 1 ? '' : 's'} reported, but no meeting activity logged the same day.`
     );
   }
 

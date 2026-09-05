@@ -1,4 +1,4 @@
-# Staffing AI Manager — local test build
+# Only A Job — Staffing Agencies — local test build
 
 A working first version of the worker portal + manager command center, for your son to click through, test, and tell you what to change. It runs entirely on your machine with demo data already loaded — no database setup, no API keys, no cost.
 
@@ -44,7 +44,7 @@ Two weeks of realistic history is pre-loaded so the weekly view, trends, and Fri
 - **Manager → Workers**: click "View" on any worker for their 14-day trend and to adjust their daily goals.
 - **Manager → Categories**: add/rename/deactivate what workers report on — try adding one.
 - **Manager → Time Entry**: manager-only hours tracking. Workers have no access to this anywhere in the app.
-- **Manager → Needs Review**: Maria Lopez has one flagged item (placement logged with no interview) — try marking it Reviewed, Correct, Needs Correction, Follow Up, or Resolved.
+- **Manager → Needs Review**: Maria Lopez has one flagged item (placement logged with no meeting) — try marking it Reviewed, Correct, Needs Correction, Follow Up, or Resolved.
 - **Manager → Friday Report**: full weekly report with facts and a separate AI interpretation section.
 - **Manager → Tasks**: type something like "Remind me to talk to Sarah tomorrow" and it'll parse the name and date automatically.
 - **Manager → AI Assistant**: click the suggested questions, or type your own. It's answering from the real seeded data — not generic text.

@@ -54,6 +54,11 @@ a { color: var(--blue); text-decoration: none; }
   color: var(--blue);
   margin-bottom: 6px;
 }
+.auth-brand-lockup { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.auth-brand-lockup img { height: 40px; width: auto; display: block; }
+.auth-brand-lockup .brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+.auth-brand-lockup .brand-name { font-weight: 800; font-size: 16px; color: var(--ink); }
+.auth-brand-lockup .brand-sub { font-size: 12px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--blue); }
 .auth-card h1 { font-size: 22px; margin: 0 0 4px; }
 .auth-card p.sub { color: var(--ink-2); font-size: 14px; margin: 0 0 24px; }
 .field { margin-bottom: 16px; }
@@ -105,6 +110,11 @@ a { color: var(--blue); text-decoration: none; }
   flex-direction: column;
 }
 .app-nav .brand { font-weight: 700; font-size: 15px; margin: 0 8px 24px; }
+.app-nav .brand-lockup { display: flex; align-items: center; gap: 10px; margin: 0 8px 24px; }
+.app-nav .brand-lockup img { height: 32px; width: auto; display: block; flex-shrink: 0; }
+.app-nav .brand-lockup .brand-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.app-nav .brand-lockup .brand-name { font-weight: 800; font-size: 14px; color: var(--ink); }
+.app-nav .brand-lockup .brand-sub { font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--ink-3); }
 .app-nav .nav-item {
   display: block;
   padding: 9px 12px;
