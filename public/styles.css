@@ -194,8 +194,15 @@ table.data-table tr:last-child td { border-bottom: none; }
   padding: 22px 18px 28px;
   position: relative;
 }
-.worker-hero .brand-lockup { margin: 0 0 18px; display: flex; align-items: center; gap: 10px; }
-.worker-hero .brand-lockup img { height: 26px; filter: brightness(0) invert(1); opacity: .95; }
+.worker-hero .brand-lockup { margin: 0 0 18px; display: flex; align-items: center; gap: 12px; }
+.worker-hero .brand-lockup .brand-badge {
+  display: flex; align-items: center; justify-content: center;
+  background: #fff;
+  border-radius: 14px;
+  padding: 6px 10px;
+  box-shadow: 0 4px 14px rgba(16,24,40,.25);
+}
+.worker-hero .brand-lockup .brand-badge img { height: 52px; width: auto; display: block; }
 .worker-hero .brand-lockup .brand-name { color: #fff; font-weight: 700; font-size: 15px; letter-spacing: .02em; }
 .worker-hero-row { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
 .worker-avatar-wrap { position: relative; flex-shrink: 0; }
