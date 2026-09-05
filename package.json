@@ -1,0 +1,19 @@
+{
+  "name": "staffing-ai-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered daily reporting and management command center for a staffing/temp agency branch.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node scripts/seed.js",
+    "test": "node test/smoke.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "pg": "^8.11.5",
+    "pg-mem": "^2.8.1"
+  }
+}

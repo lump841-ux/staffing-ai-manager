@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Today — Worker Portal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="worker-shell">
+  <div class="worker-header">
+    <div>
+      <div class="who" id="whoName">—</div>
+      <div class="date" id="whoDate"></div>
+    </div>
+    <button class="btn btn-sm" id="logoutBtn">Sign out</button>
+  </div>
+
+  <div id="submittedBanner" class="submitted-banner" style="display:none;">You've submitted today's results. You can still make changes below.</div>
+
+  <p class="section-label">Today's goal and progress</p>
+  <div class="ring-grid" id="ringGrid"></div>
+
+  <div class="panel">
+    <p class="panel-title">Submit daily results</p>
+    <form id="submitForm"></form>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="notes" rows="2" placeholder="Anything worth noting about today"></textarea>
+    </div>
+    <div class="field">
+      <label>Problems or obstacles</label>
+      <textarea id="obstacles" rows="2" placeholder="Anything that got in the way today"></textarea>
+    </div>
+    <p class="error-msg" id="submitErr"></p>
+    <button class="btn btn-primary btn-block" id="submitBtn">Submit daily results</button>
+  </div>
+</div>
+
+<script>
+let categories = [];
+
+function ringSVG(pct, size) {
+  const r = (size - 8) / 2;
+  const c = size / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference * (1 - Math.min(1, pct));
+  const color = pct >= 1 ? '#0f9d58' : pct >= 0.6 ? '#2a5bd7' : '#d92d20';
+  return `<svg class="ring-svg" viewBox="0 0 ${size} ${size}">
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#eaecf0" stroke-width="7" />
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="7"
+      stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" stroke-linecap="round"
+      transform="rotate(-90 ${c} ${c})" />
+    <text x="${c}" y="${c + 5}" text-anchor="middle" font-size="15" font-weight="700" fill="#101828">${Math.round(pct * 100)}%</text>
+  </svg>`;
+}
+
+async function loadMe() {
+  const res = await fetch('/api/auth/me');
+  if (!res.ok) { window.location.href = '/worker/login.html'; return; }
+  const me = await res.json();
+  document.getElementById('whoName').textContent = me.name;
+  document.getElementById('whoDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+async function loadToday() {
+  const res = await fetch('/api/worker/today');
+  const data = await res.json();
+  categories = data.categories;
+
+  document.getElementById('submittedBanner').style.display = data.alreadySubmitted ? 'block' : 'none';
+  document.getElementById('notes').value = data.notes || '';
+  document.getElementById('obstacles').value = data.obstacles || '';
+
+  const ringGrid = document.getElementById('ringGrid');
+  ringGrid.innerHTML = '';
+  for (const c of categories) {
+    const val = c.value != null ? c.value : 0;
+    const pct = c.target > 0 ? val / c.target : 0;
+    const card = document.createElement('div');
+    card.className = 'ring-card';
+    card.innerHTML = `${ringSVG(pct, 76)}<p class="ring-label">${c.label}</p><p class="ring-value">${val} / ${c.target || '—'}</p>`;
+    ringGrid.appendChild(card);
+  }
+
+  const form = document.getElementById('submitForm');
+  form.innerHTML = '';
+  for (const c of categories) {
+    const wrap = document.createElement('div');
+    wrap.className = 'field';
+    wrap.innerHTML = `<label>${c.label}</label><input type="number" min="0" step="1" data-cat="${c.id}" value="${c.value != null ? c.value : ''}" placeholder="0" />`;
+    form.appendChild(wrap);
+  }
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/worker/login.html';
+});
+
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('submitErr');
+  errEl.textContent = '';
+  const values = {};
+  let hasError = false;
+  document.querySelectorAll('#submitForm input[data-cat]').forEach((input) => {
+    const v = input.value === '' ? 0 : Number(input.value);
+    if (!Number.isFinite(v) || v < 0) hasError = true;
+    values[input.dataset.cat] = v;
+  });
+  if (hasError) { errEl.textContent = 'Enter valid non-negative numbers for each category.'; return; }
+
+  const res = await fetch('/api/worker/submit', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      values,
+      notes: document.getElementById('notes').value,
+      obstacles: document.getElementById('obstacles').value,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Submit failed'; return; }
+  await loadToday();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+loadMe();
+loadToday();
+</script>
+</body>
+</html>

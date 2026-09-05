@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Manager Command Center</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/styles.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <div class="app-nav">
+    <div class="brand">Summit Staffing<br />Command Center</div>
+    <div class="nav-item active" data-view="today">Today</div>
+    <div class="nav-item" data-view="week">This Week</div>
+    <div class="nav-item" data-view="workers">Workers</div>
+    <div class="nav-item" data-view="categories">Categories</div>
+    <div class="nav-item" data-view="time">Time Entry</div>
+    <div class="nav-item" data-view="review">Needs Review</div>
+    <div class="nav-item" data-view="friday">Friday Report</div>
+    <div class="nav-item" data-view="tasks">Tasks</div>
+    <div class="nav-item" data-view="ai">AI Assistant</div>
+    <div class="nav-footer">
+      <div id="whoName"></div>
+      <button class="btn btn-sm" id="logoutBtn">Sign out</button>
+    </div>
+  </div>
+
+  <div class="app-main">
+
+    <div id="view-today" class="view">
+      <div class="page-header"><div><h1>Today</h1><div class="sub" id="todayDate"></div></div></div>
+      <div id="morningBriefing" class="panel" style="display:none;">
+        <p class="panel-title">Morning briefing</p>
+        <p id="briefingText" style="font-size:14px;line-height:1.6;margin:0 0 10px;"></p>
+        <div id="briefingRecs"></div>
+      </div>
+      <div class="kpi-grid" id="todayKpis"></div>
+      <div class="panel">
+        <p class="panel-title">Workers below goal</p>
+        <div id="belowGoalList"><p class="empty">Loading…</p></div>
+      </div>
+      <div class="panel">
+        <p class="panel-title">Missing today's report</p>
+        <div id="missingList"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+
+    <div id="view-week" class="view" style="display:none;">
+      <div class="page-header"><div><h1>This week</h1><div class="sub">Monday through Friday, accumulating live</div></div></div>
+      <div class="kpi-grid" id="weekKpis"></div>
+      <div class="panel">
+        <p class="panel-title">Daily totals</p>
+        <div style="position:relative;height:260px;"><canvas id="weekChart"></canvas></div>
+      </div>
+    </div>
+
+    <div id="view-workers" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Workers</h1><div class="sub">Roster and individual performance</div></div>
+        <button class="btn btn-sm" id="addWorkerBtn">Add worker</button>
+      </div>
+      <div class="panel" id="rosterPanel">
+        <table class="data-table" id="rosterTable">
+          <thead><tr><th>Name</th><th>Email</th><th>Today</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="panel" id="workerDetailPanel" style="display:none;">
+        <p class="panel-title" id="workerDetailTitle"></p>
+        <div style="position:relative;height:200px;margin-bottom:16px;"><canvas id="workerHistoryChart"></canvas></div>
+        <p class="section-label">Daily goals</p>
+        <div id="workerGoalsForm"></div>
+        <button class="btn btn-primary btn-sm" id="saveGoalsBtn" style="margin-top:10px;">Save goals</button>
+      </div>
+    </div>
+
+    <div id="view-categories" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Categories</h1><div class="sub">What workers report on every day — fully customizable</div></div></div>
+      <div class="panel">
+        <table class="data-table" id="categoriesTable">
+          <thead><tr><th>Label</th><th>Key</th><th>Active</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <p class="panel-title">Add a category</p>
+        <div class="field"><label>Label</label><input id="newCatLabel" placeholder="e.g. Reference checks" /></div>
+        <div class="field"><label>Description (optional)</label><input id="newCatDesc" /></div>
+        <button class="btn btn-primary btn-sm" id="addCatBtn">Add category</button>
+      </div>
+    </div>
+
+    <div id="view-time" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Time entry</h1><div class="sub">Manager-only. Workers cannot view or edit this.</div></div></div>
+      <div class="panel">
+        <p class="panel-title">Add a time entry</p>
+        <div class="field"><label>Worker</label><select id="timeWorkerSelect"></select></div>
+        <div class="field"><label>Date</label><input type="date" id="timeDate" /></div>
+        <div class="field"><label>Hours worked</label><input type="number" step="0.25" min="0" id="timeHours" /></div>
+        <div class="field"><label>Type</label>
+          <select id="timeType">
+            <option value="regular">Regular</option>
+            <option value="pto">PTO</option>
+            <option value="sick">Sick</option>
+            <option value="unpaid">Unpaid</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field"><label>Notes</label><input id="timeNotes" /></div>
+        <button class="btn btn-primary btn-sm" id="addTimeBtn">Add entry</button>
+      </div>
+      <div class="panel">
+        <p class="panel-title">Recent entries</p>
+        <table class="data-table" id="timeTable">
+          <thead><tr><th>Worker</th><th>Date</th><th>Hours</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="view-review" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Needs review</h1><div class="sub">Possible discrepancies — never an accusation, always your call</div></div></div>
+      <div class="panel" id="reviewList"></div>
+    </div>
+
+    <div id="view-friday" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Friday final report</h1><div class="sub" id="fridayRange"></div></div></div>
+      <div class="kpi-grid" id="fridayKpis"></div>
+      <div class="panel">
+        <p class="panel-title">Executive summary</p>
+        <p class="section-label">Facts</p>
+        <ul id="fridayFacts" style="font-size:14px;line-height:1.7;"></ul>
+        <p class="section-label" style="margin-top:14px;">AI interpretation</p>
+        <p id="fridayInterpretation" style="background:var(--blue-lt);padding:10px 12px;border-radius:var(--r-md);font-size:14px;"></p>
+        <p class="section-label" style="margin-top:14px;">Next week priorities</p>
+        <ul id="fridayPriorities" style="font-size:14px;line-height:1.7;"></ul>
+      </div>
+    </div>
+
+    <div id="view-tasks" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Task center</h1><div class="sub">Tell the AI what to remember, or add manually</div></div></div>
+      <div class="panel">
+        <p class="panel-title">Quick add (natural language)</p>
+        <div style="display:flex;gap:8px;">
+          <input id="taskParseInput" placeholder="Remind me to talk to Maria tomorrow" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-md);" />
+          <button class="btn btn-primary btn-sm" id="taskParseBtn">Add</button>
+        </div>
+      </div>
+      <div class="panel">
+        <p class="section-label">Today</p>
+        <div id="tasksToday"></div>
+        <p class="section-label" style="margin-top:16px;">Overdue</p>
+        <div id="tasksOverdue"></div>
+        <p class="section-label" style="margin-top:16px;">Upcoming</p>
+        <div id="tasksUpcoming"></div>
+        <p class="section-label" style="margin-top:16px;">Completed</p>
+        <div id="tasksCompleted"></div>
+      </div>
+    </div>
+
+    <div id="view-ai" class="view" style="display:none;">
+      <div class="page-header"><div><h1>AI assistant</h1><div class="sub" id="aiModeNote"></div></div></div>
+      <div class="ai-panel">
+        <div class="ai-suggestions">
+          <span class="ai-suggestion" data-q="How are we doing today?">How are we doing today?</span>
+          <span class="ai-suggestion" data-q="Who hasn't submitted their numbers?">Who hasn't submitted?</span>
+          <span class="ai-suggestion" data-q="Who is falling behind?">Who's falling behind?</span>
+          <span class="ai-suggestion" data-q="Compare this week to last week.">Compare to last week</span>
+          <span class="ai-suggestion" data-q="Who improved the most?">Who improved most?</span>
+          <span class="ai-suggestion" data-q="Show me anything that doesn't add up.">Anything that doesn't add up?</span>
+          <span class="ai-suggestion" data-q="What should I concentrate on tomorrow?">Focus tomorrow?</span>
+          <span class="ai-suggestion" data-q="Which employees may need coaching?">Who needs coaching?</span>
+        </div>
+        <div id="aiThread"></div>
+        <div class="ai-input-row">
+          <input id="aiQuestionInput" placeholder="Ask about today, this week, a worker…" />
+          <button class="btn btn-primary" id="aiAskBtn">Ask</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let categoriesCache = [];
+let workersCache = [];
+
+function fmtDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+
+async function loadMe() {
+  const res = await fetch('/api/auth/me');
+  if (!res.ok) { window.location.href = '/manager/login.html'; return; }
+  const me = await res.json();
+  document.getElementById('whoName').textContent = me.name + ' · ' + me.role;
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/manager/login.html';
+});
+
+// ---- Navigation ----
+document.querySelectorAll('.nav-item[data-view]').forEach((el) => {
+  el.addEventListener('click', () => switchView(el.dataset.view));
+});
+function switchView(view) {
+  document.querySelectorAll('.view').forEach((v) => (v.style.display = 'none'));
+  document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
+  document.getElementById('view-' + view).style.display = 'block';
+  document.querySelector('.nav-item[data-view="' + view + '"]').classList.add('active');
+  const loaders = { today: loadToday, week: loadWeek, workers: loadWorkers, categories: loadCategories, time: loadTime, review: loadReview, friday: loadFriday, tasks: loadTasks, ai: loadAI };
+  if (loaders[view]) loaders[view]();
+}
+
+// ---- Today ----
+async function loadToday() {
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const res = await fetch('/api/manager/today');
+  const s = await res.json();
+
+  const kpis = document.getElementById('todayKpis');
+  kpis.innerHTML = '';
+  const cards = [
+    { label: 'Total activity', value: s.totalActivity },
+    { label: 'Goal completion', value: s.goalCompletionPct != null ? s.goalCompletionPct + '%' : '—', cls: s.goalCompletionPct >= 90 ? 'good' : s.goalCompletionPct >= 70 ? 'warn' : 'bad' },
+    { label: 'Workers reporting', value: s.workersReporting + ' / ' + s.totalWorkers },
+    { label: 'Missing reports', value: s.workersMissing.length, cls: s.workersMissing.length ? 'warn' : 'good' },
+    { label: 'Top performer', value: s.topPerformer ? s.topPerformer.name : '—' },
+    { label: 'Below goal', value: s.workersBelowGoal.length, cls: s.workersBelowGoal.length ? 'warn' : 'good' },
+    { label: 'Needs attention', value: s.needsAttention, cls: s.needsAttention ? 'bad' : 'good' },
+  ];
+  for (const c of cards) {
+    const el = document.createElement('div');
+    el.className = 'kpi-card';
+    el.innerHTML = `<p class="kpi-label">${c.label}</p><p class="kpi-value ${c.cls || ''}">${c.value}</p>`;
+    kpis.appendChild(el);
+  }
+
+  const belowEl = document.getElementById('belowGoalList');
+  belowEl.innerHTML = s.workersBelowGoal.length
+    ? s.workersBelowGoal.map((w) => `<div class="discrepancy-row"><div><div class="who">${w.name}</div><div class="why">${w.total} of ${w.goal} (${w.pct}%)</div></div><span class="pill amber">Below goal</span></div>`).join('')
+    : '<p class="empty">No one is below goal right now.</p>';
+
+  const missingEl = document.getElementById('missingList');
+  missingEl.innerHTML = s.workersMissing.length
+    ? s.workersMissing.map((w) => `<div class="discrepancy-row"><div class="who">${w.name}</div><span class="pill red">Missing</span></div>`).join('')
+    : '<p class="empty">Everyone has submitted today.</p>';
+
+  const briefRes = await fetch('/api/manager/ai/morning-briefing');
+  const brief = await briefRes.json();
+  document.getElementById('morningBriefing').style.display = 'block';
+  document.getElementById('briefingText').textContent = brief.text;
+  document.getElementById('briefingRecs').innerHTML = brief.recommendations && brief.recommendations.length
+    ? '<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--ink-2);">' + brief.recommendations.map((r) => `<li>${r}</li>`).join('') + '</ul>'
+    : '';
+}
+
+// ---- Week ----
+async function loadWeek() {
+  const res = await fetch('/api/manager/week');
+  const w = await res.json();
+  const kpis = document.getElementById('weekKpis');
+  kpis.innerHTML = '';
+  const cards = [
+    { label: 'Week total', value: w.weekTotal },
+    { label: 'vs. last week', value: w.pctChange != null ? (w.pctChange >= 0 ? '+' : '') + w.pctChange + '%' : '—', cls: w.pctChange >= 0 ? 'good' : 'bad' },
+    { label: 'Daily average', value: w.dailyAverage },
+    { label: 'Worker average', value: w.workerAverage },
+    { label: 'Best day', value: w.bestDay || '—' },
+    { label: 'Worst day', value: w.worstDay || '—' },
+  ];
+  for (const c of cards) {
+    const el = document.createElement('div');
+    el.className = 'kpi-card';
+    el.innerHTML = `<p class="kpi-label">${c.label}</p><p class="kpi-value ${c.cls || ''}">${c.value}</p>`;
+    kpis.appendChild(el);
+  }
+
+  const ctx = document.getElementById('weekChart');
+  if (window._weekChart) window._weekChart.destroy();
+  window._weekChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(w.dailyTotals).map((d) => d[0] + d.slice(1).toLowerCase()),
+      datasets: [{ label: 'Daily activity', data: Object.values(w.dailyTotals), backgroundColor: '#2a5bd7', borderRadius: 4 }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+  });
+}
+
+// ---- Workers ----
+async function loadWorkers() {
+  const res = await fetch('/api/manager/workers');
+  workersCache = await res.json();
+  const tbody = document.querySelector('#rosterTable tbody');
+  tbody.innerHTML = workersCache.map((w) => `
+    <tr>
+      <td>${w.name}</td>
+      <td>${w.email}</td>
+      <td>${w.submittedToday ? w.todayTotal : '<span class="pill red">Missing</span>'}</td>
+      <td><button class="btn btn-sm" onclick="openWorkerDetail(${w.id})">View</button></td>
+    </tr>`).join('');
+  document.getElementById('workerDetailPanel').style.display = 'none';
+}
+
+document.getElementById('addWorkerBtn').addEventListener('click', async () => {
+  const name = prompt('Worker name:');
+  if (!name) return;
+  const email = prompt('Worker email:');
+  if (!email) return;
+  const password = prompt('Temporary password:');
+  if (!password) return;
+  const res = await fetch('/api/manager/workers-new', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'Could not add worker'); return; }
+  loadWorkers();
+});
+
+let currentWorkerDetail = null;
+async function openWorkerDetail(id) {
+  const res = await fetch('/api/manager/workers/' + id);
+  const data = await res.json();
+  currentWorkerDetail = data;
+  document.getElementById('workerDetailPanel').style.display = 'block';
+  document.getElementById('workerDetailTitle').textContent = data.worker.name + ' — last 14 days';
+
+  const ctx = document.getElementById('workerHistoryChart');
+  if (window._historyChart) window._historyChart.destroy();
+  window._historyChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.history.map((h) => fmtDate(h.date)),
+      datasets: [{ label: 'Total activity', data: data.history.map((h) => h.total), borderColor: '#2a5bd7', backgroundColor: 'rgba(42,91,215,.1)', fill: true, tension: 0.3 }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+  });
+
+  const goalsForm = document.getElementById('workerGoalsForm');
+  goalsForm.innerHTML = data.goals.map((g) => `
+    <div class="field" style="display:flex;align-items:center;gap:10px;">
+      <label style="flex:1;margin:0;">${g.label}</label>
+      <input type="number" min="0" style="width:90px;" data-cat="${g.categoryId}" value="${g.target}" />
+    </div>`).join('');
+}
+
+document.getElementById('saveGoalsBtn').addEventListener('click', async () => {
+  if (!currentWorkerDetail) return;
+  const goals = [];
+  document.querySelectorAll('#workerGoalsForm input[data-cat]').forEach((input) => {
+    goals.push({ categoryId: Number(input.dataset.cat), dailyTarget: Number(input.value) || 0 });
+  });
+  const res = await fetch('/api/manager/workers/' + currentWorkerDetail.worker.id + '/goals', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ goals }),
+  });
+  if (res.ok) alert('Goals saved.');
+});
+
+// ---- Categories ----
+async function loadCategories() {
+  const res = await fetch('/api/manager/categories');
+  categoriesCache = await res.json();
+  const tbody = document.querySelector('#categoriesTable tbody');
+  tbody.innerHTML = categoriesCache.map((c) => `
+    <tr>
+      <td>${c.label}</td>
+      <td><code>${c.key}</code></td>
+      <td>${c.is_active ? '<span class="pill green">Active</span>' : '<span class="pill gray">Inactive</span>'}</td>
+      <td><button class="btn btn-sm" onclick="toggleCategory(${c.id}, ${!c.is_active})">${c.is_active ? 'Deactivate' : 'Activate'}</button></td>
+    </tr>`).join('');
+}
+
+async function toggleCategory(id, isActive) {
+  await fetch('/api/manager/categories/' + id, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isActive }),
+  });
+  loadCategories();
+}
+
+document.getElementById('addCatBtn').addEventListener('click', async () => {
+  const label = document.getElementById('newCatLabel').value.trim();
+  const description = document.getElementById('newCatDesc').value.trim();
+  if (!label) return;
+  const key = label.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  await fetch('/api/manager/categories', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, label, description }),
+  });
+  document.getElementById('newCatLabel').value = '';
+  document.getElementById('newCatDesc').value = '';
+  loadCategories();
+});
+
+// ---- Time entry ----
+async function loadTime() {
+  if (!workersCache.length) {
+    const res = await fetch('/api/manager/workers');
+    workersCache = await res.json();
+  }
+  const select = document.getElementById('timeWorkerSelect');
+  select.innerHTML = workersCache.map((w) => `<option value="${w.id}">${w.name}</option>`).join('');
+  document.getElementById('timeDate').value = new Date().toISOString().slice(0, 10);
+
+  const res = await fetch('/api/manager/time-entries');
+  const rows = await res.json();
+  const tbody = document.querySelector('#timeTable tbody');
+  tbody.innerHTML = rows.length
+    ? rows.map((r) => `<tr><td>${r.worker_name}</td><td>${fmtDate(r.entry_date)}</td><td>${r.hours_worked ?? '—'}</td><td>${r.entry_type}</td><td>${r.notes || ''}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty">No time entries yet.</td></tr>';
+}
+
+document.getElementById('addTimeBtn').addEventListener('click', async () => {
+  const workerId = Number(document.getElementById('timeWorkerSelect').value);
+  const entryDate = document.getElementById('timeDate').value;
+  const hoursWorked = document.getElementById('timeHours').value;
+  const entryType = document.getElementById('timeType').value;
+  const notes = document.getElementById('timeNotes').value;
+  if (!workerId || !entryDate) { alert('Worker and date are required.'); return; }
+  await fetch('/api/manager/time-entries', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workerId, entryDate, hoursWorked: hoursWorked ? Number(hoursWorked) : null, entryType, notes }),
+  });
+  document.getElementById('timeHours').value = '';
+  document.getElementById('timeNotes').value = '';
+  loadTime();
+});
+
+// ---- Needs review ----
+async function loadReview() {
+  const res = await fetch('/api/manager/discrepancies?status=open');
+  const rows = await res.json();
+  const el = document.getElementById('reviewList');
+  el.innerHTML = rows.length
+    ? rows.map((d) => `
+      <div class="discrepancy-row" style="display:block;">
+        <div style="display:flex;justify-content:space-between;">
+          <div><div class="who">${d.worker_name} — ${fmtDate(d.report_date)}</div><div class="why">Possible discrepancy — manager review required.<br/>${d.explanation}</div></div>
+        </div>
+        <div class="discrepancy-actions">
+          <button class="btn btn-sm" onclick="setDiscrepancy(${d.id}, 'reviewed')">Reviewed</button>
+          <button class="btn btn-sm" onclick="setDiscrepancy(${d.id}, 'correct')">Correct</button>
+          <button class="btn btn-sm" onclick="setDiscrepancy(${d.id}, 'needs_correction')">Needs correction</button>
+          <button class="btn btn-sm" onclick="setDiscrepancy(${d.id}, 'follow_up')">Follow up</button>
+          <button class="btn btn-sm" onclick="setDiscrepancy(${d.id}, 'resolved')">Resolved</button>
+        </div>
+      </div>`).join('')
+    : '<p class="empty">Nothing flagged for review right now.</p>';
+}
+
+async function setDiscrepancy(id, status) {
+  await fetch('/api/manager/discrepancies/' + id, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  loadReview();
+}
+
+// ---- Friday report ----
+async function loadFriday() {
+  const res = await fetch('/api/manager/friday-report');
+  const data = await res.json();
+  const w = data.week;
+  document.getElementById('fridayRange').textContent = fmtDate(w.weekStart) + ' – ' + fmtDate(w.weekEnd);
+
+  const kpis = document.getElementById('fridayKpis');
+  kpis.innerHTML = '';
+  const cards = [
+    { label: 'Total weekly results', value: w.weekTotal },
+    { label: 'vs. previous week', value: w.pctChange != null ? (w.pctChange >= 0 ? '+' : '') + w.pctChange + '%' : '—' },
+    { label: 'Best day', value: w.bestDay || '—' },
+    { label: 'Lowest day', value: w.worstDay || '—' },
+    { label: 'Top performer', value: w.topWorker ? w.topWorker.name : '—' },
+    { label: 'Most improved', value: w.mostImproved ? w.mostImproved.name : '—' },
+  ];
+  for (const c of cards) {
+    const el = document.createElement('div');
+    el.className = 'kpi-card';
+    el.innerHTML = `<p class="kpi-label">${c.label}</p><p class="kpi-value">${c.value}</p>`;
+    kpis.appendChild(el);
+  }
+
+  const facts = data.executiveSummary.facts;
+  const factsEl = document.getElementById('fridayFacts');
+  const factLines = [];
+  if (facts.missedSubmissions && facts.missedSubmissions.length) factLines.push(`Missed submissions: ${facts.missedSubmissions.map((m) => m.name + ' (' + m.missedDays + ' day(s))').join(', ')}`);
+  else factLines.push('No missed submissions this week.');
+  factLines.push(`Open discrepancies this week: ${facts.discrepancyCount}`);
+  factsEl.innerHTML = factLines.map((f) => `<li>${f}</li>`).join('');
+
+  document.getElementById('fridayInterpretation').textContent = data.executiveSummary.interpretation.join(' ') || 'Nothing notable to interpret this week.';
+  document.getElementById('fridayPriorities').innerHTML = data.executiveSummary.priorities.length
+    ? data.executiveSummary.priorities.map((p) => `<li>${p}</li>`).join('')
+    : '<li>No urgent priorities flagged — steady as it goes.</li>';
+}
+
+// ---- Tasks ----
+async function loadTasks() {
+  const res = await fetch('/api/manager/tasks');
+  const tasks = await res.json();
+  const today = new Date().toISOString().slice(0, 10);
+  const groups = { today: [], overdue: [], upcoming: [], completed: [] };
+  for (const t of tasks) {
+    if (t.status === 'completed') groups.completed.push(t);
+    else if (!t.due_date) groups.upcoming.push(t);
+    else if (t.due_date < today) groups.overdue.push(t);
+    else if (t.due_date === today) groups.today.push(t);
+    else groups.upcoming.push(t);
+  }
+  const render = (list, showComplete) => list.length
+    ? list.map((t) => `
+      <div class="discrepancy-row">
+        <div><div class="who">${t.title}</div><div class="why">${t.related_worker_name ? t.related_worker_name + ' · ' : ''}${t.due_date ? fmtDate(t.due_date) : 'No date'}${t.source === 'ai_created' ? ' · added by AI' : ''}</div></div>
+        ${showComplete ? `<button class="btn btn-sm" onclick="completeTask(${t.id})">Mark done</button>` : '<span class="pill green">Done</span>'}
+      </div>`).join('')
+    : '<p class="empty">Nothing here.</p>';
+  document.getElementById('tasksToday').innerHTML = render(groups.today, true);
+  document.getElementById('tasksOverdue').innerHTML = render(groups.overdue, true);
+  document.getElementById('tasksUpcoming').innerHTML = render(groups.upcoming, true);
+  document.getElementById('tasksCompleted').innerHTML = render(groups.completed, false);
+}
+
+async function completeTask(id) {
+  await fetch('/api/manager/tasks/' + id, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'completed' }),
+  });
+  loadTasks();
+}
+
+document.getElementById('taskParseBtn').addEventListener('click', async () => {
+  const text = document.getElementById('taskParseInput').value.trim();
+  if (!text) return;
+  await fetch('/api/manager/tasks/parse', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  document.getElementById('taskParseInput').value = '';
+  loadTasks();
+});
+
+// ---- AI assistant ----
+async function loadAI() {
+  document.getElementById('aiModeNote').textContent = 'Grounded in your real data. Add an API key later for fully open-ended natural language.';
+}
+
+function appendAIMessage(role, content) {
+  const thread = document.getElementById('aiThread');
+  const div = document.createElement('div');
+  div.className = 'ai-msg ' + role;
+  div.innerHTML = `<div class="role">${role === 'facts' ? 'You asked' : 'AI interpretation'}</div><div class="content">${content}</div>`;
+  thread.appendChild(div);
+  thread.scrollTop = thread.scrollHeight;
+}
+
+async function askAI(question) {
+  appendAIMessage('facts', question);
+  const res = await fetch('/api/manager/ai/ask', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  });
+  const data = await res.json();
+  appendAIMessage('interpretation', data.interpretation);
+}
+
+document.getElementById('aiAskBtn').addEventListener('click', () => {
+  const input = document.getElementById('aiQuestionInput');
+  if (!input.value.trim()) return;
+  askAI(input.value.trim());
+  input.value = '';
+});
+document.getElementById('aiQuestionInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('aiAskBtn').click();
+});
+document.querySelectorAll('.ai-suggestion').forEach((el) => {
+  el.addEventListener('click', () => askAI(el.dataset.q));
+});
+
+loadMe();
+loadToday();
+</script>
+</body>
+</html>
