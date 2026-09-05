@@ -34,6 +34,7 @@ router.get('/workers', async (req, res) => {
     id: w.id,
     name: w.name,
     email: w.email,
+    avatarUrl: w.avatar_url || null,
     submittedToday: !!(reports[w.id] && reports[w.id][today]),
     todayTotal: reports[w.id] && reports[w.id][today] ? reports[w.id][today].total : 0,
   }));
@@ -44,7 +45,7 @@ router.get('/workers/:id', async (req, res) => {
   const orgId = req.session.user.organizationId;
   const workerId = Number(req.params.id);
   const { rows } = await db.query(
-    `SELECT id, name, email FROM users WHERE id = $1 AND organization_id = $2 AND role = 'worker'`,
+    `SELECT id, name, email, avatar_url FROM users WHERE id = $1 AND organization_id = $2 AND role = 'worker'`,
     [workerId, orgId]
   );
   if (!rows.length) return res.status(404).json({ error: 'Worker not found' });

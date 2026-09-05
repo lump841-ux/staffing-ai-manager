@@ -44,7 +44,7 @@ async function getActiveCategories(orgId) {
 
 async function getWorkers(orgId) {
   const { rows } = await db.query(
-    `SELECT id, name, email FROM users
+    `SELECT id, name, email, avatar_url FROM users
      WHERE organization_id = $1 AND role = 'worker' AND active = TRUE ORDER BY name`,
     [orgId]
   );

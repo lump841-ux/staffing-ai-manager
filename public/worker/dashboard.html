@@ -8,39 +8,51 @@
 </head>
 <body>
 <div class="worker-shell">
-  <div class="brand-lockup" style="margin: 0 0 16px;">
-    <img src="/worker/logo.png" alt="Only A Job" />
-    <div class="brand-text">
-      <span class="brand-name">Only A Job</span>
-      <span class="brand-sub">Staffing Agencies</span>
+  <div class="worker-hero">
+    <div class="brand-lockup">
+      <img src="/worker/brand-logo.png" alt="Only A Job" />
+      <div class="brand-text">
+        <span class="brand-name">Only A Job</span>
+        <span class="brand-sub">Staffing Agencies</span>
+      </div>
+    </div>
+    <div class="worker-hero-row">
+      <div class="worker-avatar-wrap">
+        <div class="worker-avatar" id="workerAvatar">—</div>
+        <label class="worker-avatar-edit" title="Upload photo">
+          &#9998;
+          <input type="file" id="avatarInput" accept="image/png,image/jpeg,image/webp" />
+        </label>
+      </div>
+      <div>
+        <div class="who" id="whoName">—</div>
+        <div class="date" id="whoDate"></div>
+      </div>
+      <button class="btn btn-sm" id="logoutBtn" style="margin-left:auto;">Sign out</button>
     </div>
   </div>
-  <div class="worker-header">
-    <div>
-      <div class="who" id="whoName">—</div>
-      <div class="date" id="whoDate"></div>
-    </div>
-    <button class="btn btn-sm" id="logoutBtn">Sign out</button>
-  </div>
 
-  <div id="submittedBanner" class="submitted-banner" style="display:none;">You've submitted today's results. You can still make changes below.</div>
+  <div class="worker-body">
+    <div id="submittedBanner" class="submitted-banner" style="display:none;">You've submitted today's results. You can still make changes below.</div>
+    <p class="error-msg" id="avatarErr"></p>
 
-  <p class="section-label">Today's goal and progress</p>
-  <div class="ring-grid" id="ringGrid"></div>
+    <p class="section-label">Today's goal and progress</p>
+    <div class="ring-grid" id="ringGrid"></div>
 
-  <div class="panel">
-    <p class="panel-title">Submit daily results</p>
-    <form id="submitForm"></form>
-    <div class="field">
-      <label>Notes</label>
-      <textarea id="notes" rows="2" placeholder="Anything worth noting about today"></textarea>
+    <div class="panel">
+      <p class="panel-title">Submit daily results</p>
+      <form id="submitForm"></form>
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="notes" rows="2" placeholder="Anything worth noting about today"></textarea>
+      </div>
+      <div class="field">
+        <label>Problems or obstacles</label>
+        <textarea id="obstacles" rows="2" placeholder="Anything that got in the way today"></textarea>
+      </div>
+      <p class="error-msg" id="submitErr"></p>
+      <button class="btn btn-primary btn-block" id="submitBtn">Submit daily results</button>
     </div>
-    <div class="field">
-      <label>Problems or obstacles</label>
-      <textarea id="obstacles" rows="2" placeholder="Anything that got in the way today"></textarea>
-    </div>
-    <p class="error-msg" id="submitErr"></p>
-    <button class="btn btn-primary btn-block" id="submitBtn">Submit daily results</button>
   </div>
 </div>
 
@@ -62,13 +74,69 @@ function ringSVG(pct, size) {
   </svg>`;
 }
 
+function renderAvatar(name, avatarUrl) {
+  const el = document.getElementById('workerAvatar');
+  if (avatarUrl) {
+    el.innerHTML = `<img src="${avatarUrl}" alt="${name}" />`;
+  } else {
+    const initials = (name || '?').trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+    el.textContent = initials || '?';
+  }
+}
+
 async function loadMe() {
   const res = await fetch('/api/auth/me');
   if (!res.ok) { window.location.href = '/worker/login.html'; return; }
   const me = await res.json();
   document.getElementById('whoName').textContent = me.name;
   document.getElementById('whoDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  renderAvatar(me.name, me.avatarUrl);
 }
+
+// Resize/compress the chosen photo client-side (max 320px, JPEG ~0.8 quality)
+// before sending, so uploads stay well under the server's 900kb cap and the
+// 2mb JSON body limit — no library needed, just a canvas.
+function fileToCompressedDataUrl(file, maxSize = 320, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.onload = () => { img.src = reader.result; };
+    img.onerror = () => reject(new Error('Could not read that image.'));
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxSize) { height = Math.round(height * (maxSize / width)); width = maxSize; }
+      else if (height > maxSize) { width = Math.round(width * (maxSize / height)); height = maxSize; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('avatarInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const errEl = document.getElementById('avatarErr');
+  errEl.textContent = '';
+  try {
+    const dataUrl = await fileToCompressedDataUrl(file);
+    const res = await fetch('/api/worker/avatar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Upload failed'; return; }
+    renderAvatar(document.getElementById('whoName').textContent, data.avatarUrl);
+  } catch (err) {
+    errEl.textContent = err.message || 'Upload failed';
+  }
+  e.target.value = '';
+});
 
 async function loadToday() {
   const res = await fetch('/api/worker/today');

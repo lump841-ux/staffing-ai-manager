@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone TEXT,
   password_hash TEXT NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
+  avatar_url TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 

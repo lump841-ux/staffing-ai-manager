@@ -98,6 +98,23 @@ router.post('/submit', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Profile photo upload. Client resizes/compresses to a small JPEG data URL
+// before sending, so this just validates shape/size and stores it — no
+// external file storage needed for the demo (works fine with pg-mem too).
+router.post('/avatar', async (req, res) => {
+  const workerId = req.session.user.id;
+  const { dataUrl } = req.body || {};
+  if (typeof dataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp);base64,/.test(dataUrl)) {
+    return res.status(400).json({ error: 'Please upload a PNG, JPEG, or WebP image.' });
+  }
+  if (dataUrl.length > 900 * 1024) {
+    return res.status(400).json({ error: 'That image is too large. Try a smaller photo.' });
+  }
+  await db.query(`UPDATE users SET avatar_url = $1 WHERE id = $2`, [dataUrl, workerId]);
+  req.session.user.avatarUrl = dataUrl;
+  res.json({ ok: true, avatarUrl: dataUrl });
+});
+
 router.get('/history', async (req, res) => {
   const workerId = req.session.user.id;
   const orgId = req.session.user.organizationId;

@@ -37,6 +37,10 @@ a { color: var(--blue); text-decoration: none; }
   justify-content: center;
   padding: 24px;
 }
+.auth-shell.worker-auth {
+  background: linear-gradient(160deg, #12326b 0%, #2a5bd7 55%, #4f7fe8 100%);
+}
+.auth-shell.worker-auth .auth-card { box-shadow: 0 12px 32px rgba(16,24,40,.25); }
 .auth-card {
   width: 100%;
   max-width: 380px;
@@ -55,7 +59,7 @@ a { color: var(--blue); text-decoration: none; }
   margin-bottom: 6px;
 }
 .auth-brand-lockup { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
-.auth-brand-lockup img { height: 40px; width: auto; display: block; }
+.auth-brand-lockup img { height: 30px; width: auto; display: block; }
 .auth-brand-lockup .brand-text { display: flex; flex-direction: column; line-height: 1.25; }
 .auth-brand-lockup .brand-name { font-weight: 800; font-size: 16px; color: var(--ink); }
 .auth-brand-lockup .brand-sub { font-size: 12px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--blue); }
@@ -168,11 +172,65 @@ table.data-table tr:last-child td { border-bottom: none; }
 .discrepancy-row { display: flex; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line-2); }
 .discrepancy-row:last-child { border-bottom: none; }
 .discrepancy-row .who { font-weight: 600; font-size: 14px; }
+.avatar-sm {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  background: var(--blue-lt); color: var(--blue); font-weight: 700; font-size: 13px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.avatar-sm img { width: 100%; height: 100%; object-fit: cover; }
 .discrepancy-row .why { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
 .discrepancy-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 
+/* Brand lockup — safe default so a logo never renders at native image size
+   if it's used somewhere that isn't covered by a more specific rule below. */
+.brand-lockup img { height: 28px; width: auto; display: block; }
+
 /* Worker portal */
-.worker-shell { max-width: 480px; margin: 0 auto; padding: 24px 18px 80px; }
+.worker-shell { max-width: 480px; margin: 0 auto 80px; padding: 0 0 0; }
+.worker-hero {
+  background: linear-gradient(160deg, #12326b 0%, #2a5bd7 55%, #4f7fe8 100%);
+  padding: 22px 18px 54px;
+  margin-bottom: -34px;
+  border-radius: 0 0 28px 28px;
+  position: relative;
+  overflow: hidden;
+}
+.worker-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(16,24,40,.18) 100%);
+  pointer-events: none;
+}
+.worker-hero .brand-lockup { margin: 0 0 18px; }
+.worker-hero .brand-lockup img { height: 24px; filter: brightness(0) invert(1); opacity: .92; }
+.worker-hero .brand-lockup .brand-name { color: #fff; }
+.worker-hero .brand-lockup .brand-sub { color: rgba(255,255,255,.75); }
+.worker-hero-row { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
+.worker-avatar-wrap { position: relative; flex-shrink: 0; }
+.worker-avatar {
+  width: 60px; height: 60px; border-radius: 50%;
+  background: rgba(255,255,255,.18);
+  border: 2px solid rgba(255,255,255,.55);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 20px;
+  overflow: hidden;
+}
+.worker-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.worker-avatar-edit {
+  position: absolute; bottom: -2px; right: -2px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--blue);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 12px; color: var(--blue);
+  box-shadow: var(--sh-sm);
+}
+.worker-avatar-edit input { display: none; }
+.worker-hero .who { font-weight: 700; font-size: 18px; color: #fff; }
+.worker-hero .date { color: rgba(255,255,255,.8); font-size: 13px; }
+.worker-hero .btn { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.35); }
+.worker-hero .btn:hover { background: rgba(255,255,255,.24); }
+.worker-body { padding: 0 18px 24px; position: relative; z-index: 1; }
 .worker-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .worker-header .who { font-weight: 700; font-size: 16px; }
 .worker-header .date { color: var(--ink-2); font-size: 13px; }

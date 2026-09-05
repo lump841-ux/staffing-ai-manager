@@ -4,7 +4,9 @@ const path = require('path');
 const db = require('./services/db');
 
 const app = express();
-app.use(express.json());
+// Raised from the 100kb default so worker profile-photo uploads (base64
+// data URLs, capped at ~900kb in routes/worker.js) fit in the request body.
+app.use(express.json({ limit: '2mb' }));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
   resave: false,

@@ -11,7 +11,7 @@
 <div class="app-shell">
   <div class="app-nav">
     <div class="brand-lockup">
-      <img src="/manager/logo.png" alt="Only A Job" />
+      <img src="/manager/brand-logo.png" alt="Only A Job" />
       <div class="brand-text">
         <span class="brand-name">Only A Job</span>
         <span class="brand-sub">Staffing Agencies</span>
@@ -302,7 +302,10 @@ async function loadWorkers() {
   const tbody = document.querySelector('#rosterTable tbody');
   tbody.innerHTML = workersCache.map((w) => `
     <tr>
-      <td>${w.name}</td>
+      <td><div style="display:flex;align-items:center;gap:10px;">
+        <div class="avatar-sm">${w.avatarUrl ? `<img src="${w.avatarUrl}" alt="${w.name}" />` : (w.name || '?').trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()}</div>
+        <span>${w.name}</span>
+      </div></td>
       <td>${w.email}</td>
       <td>${w.submittedToday ? w.todayTotal : '<span class="pill red">Missing</span>'}</td>
       <td><button class="btn btn-sm" onclick="openWorkerDetail(${w.id})">View</button></td>

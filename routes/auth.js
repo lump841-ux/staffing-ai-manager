@@ -8,7 +8,7 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
   const { rows } = await db.query(
-    `SELECT id, organization_id, branch_id, role, name, email, password_hash, active
+    `SELECT id, organization_id, branch_id, role, name, email, password_hash, active, avatar_url
      FROM users WHERE email = $1`,
     [email.toLowerCase().trim()]
   );
@@ -25,6 +25,7 @@ router.post('/login', async (req, res) => {
     role: user.role,
     name: user.name,
     email: user.email,
+    avatarUrl: user.avatar_url || null,
   };
   res.json({ ok: true, user: req.session.user });
 });
