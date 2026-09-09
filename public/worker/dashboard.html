@@ -361,8 +361,15 @@ document.getElementById('clockBtn').addEventListener('click', async () => {
 });
 
 // ---- My work history ----
+// report_date comes back from the server as either a bare "YYYY-MM-DD"
+// string (real Postgres) or a full ISO timestamp (pg-mem's DATE columns
+// serialize as midnight UTC) — normalize both before handing to Date().
+function toDateObj(d) {
+  const s = String(d);
+  return new Date(s.includes('T') ? s : s + 'T00:00:00');
+}
 function fmtHistDate(d) {
-  return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  return toDateObj(d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 async function loadWorkHistory() {
@@ -386,7 +393,7 @@ async function loadWorkHistory() {
 
   el.innerHTML = data.dailyReports.map((r) => {
     const values = r.values.filter((v) => v.label).map((v) => `${v.label}: ${v.value}`).join(' &middot; ');
-    const day = new Date(r.date + 'T00:00:00').toDateString();
+    const day = toDateObj(r.date).toDateString();
     const clockRows = (clockByDay[day] || []).map((c) => {
       const out = c.clock_out_at ? fmtClockTime(c.clock_out_at) : 'still clocked in';
       return `<div style="font-size:12px;color:var(--text-2,#667085);">Clocked ${fmtClockTime(c.clock_in_at)} → ${out}</div>`;
