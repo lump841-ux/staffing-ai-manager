@@ -23,9 +23,11 @@
     <div class="nav-item" data-view="categories">Categories</div>
     <div class="nav-item" data-view="time">Time Entry</div>
     <div class="nav-item" data-view="review">Needs Review</div>
+    <div class="nav-item" data-view="photos">Photo Review</div>
     <div class="nav-item" data-view="friday">Friday Report</div>
     <div class="nav-item" data-view="tasks">Tasks</div>
     <div class="nav-item" data-view="ai">AI Assistant</div>
+    <div class="nav-item" id="billingNavItem" data-view="billing" style="display:none;">Billing</div>
     <div class="nav-footer">
       <div id="whoName"></div>
       <button class="btn btn-sm" id="logoutBtn">Sign out</button>
@@ -129,6 +131,22 @@
       <div class="panel" id="reviewList"></div>
     </div>
 
+    <div id="view-photos" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Photo review</h1><div class="sub">Worker-submitted proof of completed activities</div></div></div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="btn btn-sm photo-filter-btn active" data-status="pending_verification">Pending Verification</button>
+        <button class="btn btn-sm photo-filter-btn" data-status="needs_review">Needs Review</button>
+        <button class="btn btn-sm photo-filter-btn" data-status="verified">Verified</button>
+        <button class="btn btn-sm photo-filter-btn" data-status="">All</button>
+      </div>
+      <div class="panel" id="photoReviewList"></div>
+    </div>
+
+    <div id="view-billing" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Billing &amp; Subscription</h1><div class="sub">Owner-only. Your plan, invoices, and payment method.</div></div></div>
+      <div id="billingContent"></div>
+    </div>
+
     <div id="view-friday" class="view" style="display:none;">
       <div class="page-header"><div><h1>Friday final report</h1><div class="sub" id="fridayRange"></div></div></div>
       <div class="kpi-grid" id="fridayKpis"></div>
@@ -194,11 +212,14 @@ let workersCache = [];
 
 function fmtDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
 
+let myRole = null;
 async function loadMe() {
   const res = await fetch('/api/auth/me');
   if (!res.ok) { window.location.href = '/manager/login.html'; return; }
   const me = await res.json();
+  myRole = me.role;
   document.getElementById('whoName').textContent = me.name + ' · ' + me.role;
+  if (me.role === 'owner') document.getElementById('billingNavItem').style.display = 'block';
 }
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -215,7 +236,7 @@ function switchView(view) {
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
   document.getElementById('view-' + view).style.display = 'block';
   document.querySelector('.nav-item[data-view="' + view + '"]').classList.add('active');
-  const loaders = { today: loadToday, week: loadWeek, workers: loadWorkers, categories: loadCategories, time: loadTime, review: loadReview, friday: loadFriday, tasks: loadTasks, ai: loadAI };
+  const loaders = { today: loadToday, week: loadWeek, workers: loadWorkers, categories: loadCategories, time: loadTime, review: loadReview, photos: loadPhotoReview, friday: loadFriday, tasks: loadTasks, ai: loadAI, billing: loadBilling };
   if (loaders[view]) loaders[view]();
 }
 
@@ -588,6 +609,114 @@ document.getElementById('aiQuestionInput').addEventListener('keydown', (e) => {
 document.querySelectorAll('.ai-suggestion').forEach((el) => {
   el.addEventListener('click', () => askAI(el.dataset.q));
 });
+
+// ---- Photo review ----
+let photoFilterStatus = 'pending_verification';
+document.querySelectorAll('.photo-filter-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.photo-filter-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    photoFilterStatus = btn.dataset.status;
+    loadPhotoReview();
+  });
+});
+
+const PHOTO_STATUS_PILL = {
+  pending_verification: '<span class="pill amber">Pending Verification</span>',
+  verified: '<span class="pill green">Verified</span>',
+  needs_review: '<span class="pill red">Needs Review</span>',
+};
+
+async function loadPhotoReview() {
+  const qs = photoFilterStatus ? '?status=' + photoFilterStatus : '';
+  const res = await fetch('/api/manager/activity-proofs' + qs);
+  const rows = await res.json();
+  const el = document.getElementById('photoReviewList');
+  el.innerHTML = rows.length
+    ? rows.map((p) => `
+      <div class="discrepancy-row" style="display:block;">
+        <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;">
+          <div>
+            <div class="who">${p.worker_name} — ${p.title}</div>
+            <div class="why">Submitted ${new Date(p.submitted_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}${p.note ? '<br/>Worker note: ' + p.note : ''}${p.reviewed_by_name ? '<br/>Reviewed by ' + p.reviewed_by_name + (p.review_comment ? ': ' + p.review_comment : '') : ''}</div>
+            <a href="${p.photo_data_url}" target="_blank" style="font-size:13px;">View Photo</a>
+          </div>
+          ${PHOTO_STATUS_PILL[p.status] || ''}
+        </div>
+        ${p.status !== 'verified' ? `
+        <div class="discrepancy-actions">
+          <button class="btn btn-sm" onclick="reviewProof(${p.id}, 'verified')">Approve / Verify</button>
+          <button class="btn btn-sm" onclick="reviewProofWithComment(${p.id}, 'needs_review')">Needs Review / Ask for info</button>
+        </div>` : ''}
+      </div>`).join('')
+    : '<p class="empty">Nothing in this queue.</p>';
+}
+
+async function reviewProof(id, status, comment) {
+  await fetch('/api/manager/activity-proofs/' + id, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, comment: comment || null }),
+  });
+  loadPhotoReview();
+}
+
+function reviewProofWithComment(id, status) {
+  const comment = prompt('Comment for the worker (what needs review, or what additional info you need):') || '';
+  reviewProof(id, status, comment);
+}
+
+// ---- Billing (owner-only) ----
+async function loadBilling() {
+  const el = document.getElementById('billingContent');
+  if (myRole !== 'owner') {
+    el.innerHTML = '<p class="empty">Only the Agency Owner can view billing.</p>';
+    return;
+  }
+  el.innerHTML = '<p class="empty">Loading…</p>';
+  const res = await fetch('/api/billing/summary');
+  if (!res.ok) { el.innerHTML = '<p class="empty">Could not load billing.</p>'; return; }
+  const b = await res.json();
+
+  const statusPill = { active: 'green', trialing: 'amber', past_due: 'red', canceled: 'gray', suspended: 'red' }[b.billingStatus] || 'gray';
+
+  el.innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi-card"><p class="kpi-label">Current plan</p><p class="kpi-value">${b.planName}${b.isFoundingPartner ? ' 🏆' : ''}</p><p class="kpi-sub">${b.isFoundingPartner ? 'Founding Partner rate locked in' : ''}</p></div>
+      <div class="kpi-card"><p class="kpi-label">Monthly price</p><p class="kpi-value">$${b.priceDisplay}</p></div>
+      <div class="kpi-card"><p class="kpi-label">Account status</p><p class="kpi-value"><span class="pill ${statusPill}">${b.billingStatus}</span></p></div>
+      <div class="kpi-card"><p class="kpi-label">Next billing date</p><p class="kpi-value" style="font-size:18px;">${b.nextBillingDate || '—'}</p></div>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Payment method</p>
+      <p style="font-size:14px;">${b.paymentMethodLabel || 'No payment method on file'}</p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Upgrade plan</p>
+      <div style="display:flex;gap:8px;">
+        ${b.upgradeOptions.map((p) => `<button class="btn btn-sm" onclick="upgradePlan('${p.key}')">${p.name} — $${p.priceDisplay}/mo</button>`).join('') || '<p class="empty">You are on the top self-serve plan. Contact sales for Enterprise.</p>'}
+      </div>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Previous invoices / payments</p>
+      <table class="data-table">
+        <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody>
+          ${b.invoices.length ? b.invoices.map((i) => `<tr><td>${new Date(i.created_at).toLocaleDateString()}</td><td>${i.description || i.type}</td><td>$${(i.amount_cents / 100).toFixed(2)}</td><td><span class="pill ${i.status === 'paid' ? 'green' : i.status === 'waived' ? 'gray' : 'amber'}">${i.status}</span></td></tr>`).join('') : '<tr><td colspan="4" class="empty">No invoices yet.</td></tr>'}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function upgradePlan(planKey) {
+  if (!confirm('Change your subscription to this plan?')) return;
+  const res = await fetch('/api/billing/upgrade', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plan: planKey }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'Could not change plan'); return; }
+  loadBilling();
+}
 
 loadMe();
 loadToday();

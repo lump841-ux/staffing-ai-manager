@@ -19,6 +19,9 @@ app.get('/healthz', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/worker', require('./routes/worker'));
 app.use('/api/manager', require('./routes/manager'));
+app.use('/api/signup', require('./routes/signup'));
+app.use('/api/billing', require('./routes/billing'));
+app.use('/api/platform-admin', require('./routes/platform-admin'));
 
 // Role-gated page routes — serving the same static files but only after
 // checking the session, so a direct URL hit or refresh behaves correctly.

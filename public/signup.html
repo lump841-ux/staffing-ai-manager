@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Start Your Agency — Only A Job</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="marketing-shell">
+  <div class="marketing-header">
+    <div class="brand-lockup">
+      <img src="/manager/brand-logo.png" alt="Only A Job" />
+      <div><div class="brand-name">Only A Job</div><div class="brand-sub">Start Your Agency</div></div>
+    </div>
+    <a class="btn btn-sm" href="/pricing.html">← Back to pricing</a>
+  </div>
+
+  <div class="marketing-main">
+    <div class="wizard-steps">
+      <div class="wizard-step active" data-step="0">1. Company</div>
+      <div class="wizard-step" data-step="1">2. Contact &amp; Owner Login</div>
+      <div class="wizard-step" data-step="2">3. Billing</div>
+      <div class="wizard-step" data-step="3">4. Review &amp; Pay</div>
+      <div class="wizard-step" data-step="4">5. Done</div>
+    </div>
+
+    <div class="wizard-card">
+      <p class="error-msg" id="wizErr"></p>
+
+      <!-- Step 0: Company -->
+      <div class="wiz-panel" data-panel="0">
+        <h2>Your agency</h2>
+        <p class="sub">Selected plan: <strong id="selectedPlanLabel">—</strong></p>
+        <div class="field"><label>Company / Agency name</label><input id="companyName" required /></div>
+        <div class="field"><label>Primary office name</label><input id="officeName" placeholder="Main Office" /></div>
+        <div class="field"><label>Primary office address</label><input id="officeAddress" placeholder="Optional" /></div>
+        <div class="wizard-actions"><span></span><button class="btn btn-primary" onclick="goStep(1)">Continue</button></div>
+      </div>
+
+      <!-- Step 1: Contact + owner login -->
+      <div class="wiz-panel" data-panel="1" style="display:none;">
+        <h2>Primary contact &amp; owner login</h2>
+        <p class="sub">This person becomes the Agency Owner/Admin.</p>
+        <div class="field"><label>Full name</label><input id="contactName" required /></div>
+        <div class="field"><label>Email</label><input type="email" id="contactEmail" required /></div>
+        <div class="field"><label>Phone</label><input id="contactPhone" /></div>
+        <div class="field"><label>Password (8+ characters)</label><input type="password" id="password" required minlength="8" /></div>
+        <div class="wizard-actions"><button class="btn" onclick="goStep(0)">Back</button><button class="btn btn-primary" onclick="goStep(2)">Continue</button></div>
+      </div>
+
+      <!-- Step 2: Billing -->
+      <div class="wiz-panel" data-panel="2" style="display:none;">
+        <h2>Billing information</h2>
+        <p class="sub">Demo checkout — no real charge is made. In production this step is a live Stripe payment form.</p>
+        <div class="field"><label>Name on card</label><input id="cardName" placeholder="As it appears on the card" /></div>
+        <div class="field"><label>Card number</label><input id="cardNumber" maxlength="19" placeholder="4242 4242 4242 4242" /></div>
+        <div style="display:flex;gap:12px;">
+          <div class="field" style="flex:1;"><label>Expiry</label><input id="cardExpiry" placeholder="MM/YY" /></div>
+          <div class="field" style="flex:1;"><label>CVC</label><input id="cardCvc" placeholder="123" maxlength="4" /></div>
+        </div>
+        <p style="font-size:12px;color:var(--ink-3);">Only the last 4 digits are ever sent or stored — this demo never transmits a full card number.</p>
+        <div class="wizard-actions"><button class="btn" onclick="goStep(1)">Back</button><button class="btn btn-primary" onclick="goStep(3)">Continue</button></div>
+      </div>
+
+      <!-- Step 3: Review + Pay -->
+      <div class="wiz-panel" data-panel="3" style="display:none;">
+        <h2>Review &amp; pay</h2>
+        <div class="summary-row"><span class="label">Plan</span><span class="value" id="rvPlan">—</span></div>
+        <div class="summary-row"><span class="label">Monthly subscription</span><span class="value" id="rvMonthly">—</span></div>
+        <div class="summary-row"><span class="label">Setup / onboarding charge</span><span class="value" id="rvSetup">—</span></div>
+        <div class="summary-row total"><span class="label">Amount due today</span><span class="value" id="rvDueToday">—</span></div>
+        <div class="summary-row"><span class="label">Next billing date</span><span class="value" id="rvNextBilling">—</span></div>
+        <div class="summary-row"><span class="label">Future monthly billing</span><span class="value" id="rvFutureMonthly">—</span></div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="tosCheck" />
+          <span>I accept the <a href="#" onclick="return false;">Terms of Service</a>, <a href="#" onclick="return false;">Privacy Policy</a>, and <a href="#" onclick="return false;">Subscription/Billing Terms</a>.</span>
+        </label>
+        <div class="wizard-actions"><button class="btn" onclick="goStep(2)">Back</button><button class="btn btn-primary" id="payBtn" onclick="submitSignup()">Pay &amp; Create Agency</button></div>
+      </div>
+
+      <!-- Step 4: Success -->
+      <div class="wiz-panel" data-panel="4" style="display:none;text-align:center;">
+        <h2>You're in! 🎉</h2>
+        <p class="sub">Your agency account has been created. Redirecting to your dashboard…</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+let plans = [];
+let selectedPlan = null;
+
+async function loadPlan() {
+  const res = await fetch('/api/signup/plans');
+  const data = await res.json();
+  plans = data.plans;
+  const key = params.get('plan') || 'growth';
+  selectedPlan = plans.find((p) => p.key === key) || plans[0];
+  document.getElementById('selectedPlanLabel').textContent = selectedPlan.name + ' — $' + selectedPlan.priceDisplay + '/mo';
+}
+loadPlan();
+
+function goStep(n) {
+  document.querySelectorAll('.wiz-panel').forEach((p) => p.style.display = 'none');
+  document.querySelector('.wiz-panel[data-panel="' + n + '"]').style.display = 'block';
+  document.querySelectorAll('.wizard-step').forEach((s) => {
+    const step = Number(s.dataset.step);
+    s.classList.toggle('active', step === n);
+    s.classList.toggle('done', step < n);
+  });
+  document.getElementById('wizErr').textContent = '';
+  if (n === 3) renderReview();
+}
+
+function renderReview() {
+  document.getElementById('rvPlan').textContent = selectedPlan.name;
+  document.getElementById('rvMonthly').textContent = '$' + selectedPlan.priceDisplay + '/mo';
+  document.getElementById('rvSetup').textContent = '$' + selectedPlan.setupFeeDisplay;
+  const due = (Number(selectedPlan.priceCents) + Number(selectedPlan.setupFeeCents)) / 100;
+  document.getElementById('rvDueToday').textContent = '$' + due.toFixed(2);
+  const next = new Date();
+  next.setMonth(next.getMonth() + 1);
+  document.getElementById('rvNextBilling').textContent = next.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('rvFutureMonthly').textContent = '$' + selectedPlan.priceDisplay + '/mo starting ' + next.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+async function submitSignup() {
+  const errEl = document.getElementById('wizErr');
+  errEl.textContent = '';
+  if (!document.getElementById('tosCheck').checked) {
+    errEl.textContent = 'You must accept the Terms of Service, Privacy Policy, and Subscription/Billing Terms.';
+    return;
+  }
+  const cardNumber = document.getElementById('cardNumber').value.replace(/\s+/g, '');
+  const last4 = cardNumber.slice(-4) || '4242';
+  const paymentMethodLabel = 'Demo card ending in ' + last4;
+
+  const payload = {
+    companyName: document.getElementById('companyName').value.trim(),
+    officeName: document.getElementById('officeName').value.trim(),
+    officeAddress: document.getElementById('officeAddress').value.trim(),
+    contactName: document.getElementById('contactName').value.trim(),
+    contactEmail: document.getElementById('contactEmail').value.trim(),
+    contactPhone: document.getElementById('contactPhone').value.trim(),
+    password: document.getElementById('password').value,
+    plan: selectedPlan.key,
+    paymentMethodLabel,
+    tosAccepted: true,
+  };
+  if (!payload.companyName || !payload.contactName || !payload.contactEmail || !payload.password) {
+    errEl.textContent = 'Please complete the Company and Contact steps first.';
+    return;
+  }
+
+  const btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing…';
+  try {
+    const res = await fetch('/api/signup/agency', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Signup failed'; btn.disabled = false; btn.textContent = 'Pay & Create Agency'; return; }
+    goStep(4);
+    setTimeout(() => { window.location.href = data.redirectTo || '/dashboard/manager'; }, 1400);
+  } catch (err) {
+    errEl.textContent = 'Could not reach the server.';
+    btn.disabled = false;
+    btn.textContent = 'Pay & Create Agency';
+  }
+}
+</script>
+</body>
+</html>

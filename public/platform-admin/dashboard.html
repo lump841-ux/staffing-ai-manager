@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Super Admin — Only A Job Platform</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="app-shell">
+  <div class="app-nav">
+    <div class="brand">Only A Job<br/><span style="font-weight:400;font-size:12px;color:var(--ink-3);">Platform Super Admin</span></div>
+    <div class="nav-item active" data-view="overview">Overview</div>
+    <div class="nav-item" data-view="agencies">Agencies</div>
+    <div class="nav-item" data-view="leads">Enterprise Leads</div>
+    <div class="nav-footer">
+      <div id="whoName"></div>
+      <button class="btn btn-sm" id="logoutBtn">Sign out</button>
+    </div>
+  </div>
+
+  <div class="app-main">
+    <div id="view-overview" class="view">
+      <div class="page-header"><div><h1>Platform overview</h1><div class="sub">Across every staffing agency on Only A Job</div></div></div>
+      <div class="kpi-grid" id="overviewKpis"></div>
+    </div>
+
+    <div id="view-agencies" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Agencies</h1><div class="sub">Every staffing agency account</div></div></div>
+      <div class="panel">
+        <table class="data-table">
+          <thead><tr><th>Agency</th><th>Plan</th><th>Price</th><th>Status</th><th>Founding</th><th>Offices</th><th>Users</th><th></th></tr></thead>
+          <tbody id="agenciesTbody"></tbody>
+        </table>
+      </div>
+      <div class="panel" id="agencyDetailPanel" style="display:none;"></div>
+    </div>
+
+    <div id="view-leads" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Enterprise leads</h1><div class="sub">Contact Sales submissions</div></div></div>
+      <div class="panel">
+        <table class="data-table">
+          <thead><tr><th>Company</th><th>Contact</th><th>Email</th><th>Offices</th><th>Users</th><th>Status</th><th></th></tr></thead>
+          <tbody id="leadsTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadMe() {
+  const res = await fetch('/api/platform-admin/me');
+  if (!res.ok) { window.location.href = '/platform-admin/login.html'; return; }
+  const me = await res.json();
+  document.getElementById('whoName').textContent = me.name;
+}
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/api/platform-admin/logout', { method: 'POST' });
+  window.location.href = '/platform-admin/login.html';
+});
+
+document.querySelectorAll('.nav-item[data-view]').forEach((el) => {
+  el.addEventListener('click', () => switchView(el.dataset.view));
+});
+function switchView(view) {
+  document.querySelectorAll('.view').forEach((v) => (v.style.display = 'none'));
+  document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
+  document.getElementById('view-' + view).style.display = 'block';
+  document.querySelector('.nav-item[data-view="' + view + '"]').classList.add('active');
+  const loaders = { overview: loadOverview, agencies: loadAgencies, leads: loadLeads };
+  if (loaders[view]) loaders[view]();
+}
+
+async function loadOverview() {
+  const res = await fetch('/api/platform-admin/overview');
+  const d = await res.json();
+  const kpis = document.getElementById('overviewKpis');
+  const cards = [
+    { label: 'Total agencies', value: d.totalAgencies },
+    { label: 'Active subscriptions', value: d.activeSubscriptions, cls: 'good' },
+    { label: 'MRR', value: '$' + d.mrrDisplay },
+    { label: 'Founding partners', value: d.foundingPartners + ' / ' + d.foundingPartnerLimit, cls: d.foundingSlotsRemaining === 0 ? 'warn' : '' },
+    { label: 'New signups (30d)', value: d.newSignups30d },
+    { label: 'Canceled', value: d.canceled, cls: d.canceled ? 'bad' : '' },
+    { label: 'Past due', value: d.pastDue, cls: d.pastDue ? 'bad' : 'good' },
+    { label: 'Suspended', value: d.suspended, cls: d.suspended ? 'bad' : 'good' },
+    { label: 'Setup fees collected', value: '$' + d.setupFeesCollectedDisplay },
+    { label: 'Setup fees waived', value: d.setupFeesWaivedCount },
+  ];
+  kpis.innerHTML = cards.map((c) => `<div class="kpi-card"><p class="kpi-label">${c.label}</p><p class="kpi-value ${c.cls || ''}">${c.value}</p></div>`).join('');
+}
+
+let agenciesCache = [];
+async function loadAgencies() {
+  const res = await fetch('/api/platform-admin/agencies');
+  agenciesCache = await res.json();
+  document.getElementById('agenciesTbody').innerHTML = agenciesCache.map((a) => `
+    <tr>
+      <td>${a.name}</td>
+      <td>${a.plan}</td>
+      <td>$${(a.plan_price_cents / 100).toFixed(2)}</td>
+      <td><span class="pill ${{active:'green',trialing:'amber',past_due:'red',canceled:'gray',suspended:'red'}[a.billing_status] || 'gray'}">${a.billing_status}</span></td>
+      <td>${a.is_founding_partner ? '🏆' : ''}</td>
+      <td>${a.office_count}</td>
+      <td>${a.user_count}</td>
+      <td><button class="btn btn-sm" onclick="openAgency(${a.id})">Manage</button></td>
+    </tr>`).join('');
+  document.getElementById('agencyDetailPanel').style.display = 'none';
+}
+
+async function openAgency(id) {
+  const res = await fetch('/api/platform-admin/agencies/' + id);
+  const d = await res.json();
+  const org = d.organization;
+  const panel = document.getElementById('agencyDetailPanel');
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <p class="panel-title">${org.name}</p>
+    <div class="kpi-grid">
+      <div class="kpi-card"><p class="kpi-label">Plan</p><p class="kpi-value">${org.plan}</p></div>
+      <div class="kpi-card"><p class="kpi-label">Monthly price</p><p class="kpi-value">$${(org.plan_price_cents/100).toFixed(2)}</p></div>
+      <div class="kpi-card"><p class="kpi-label">Status</p><p class="kpi-value">${org.billing_status}</p></div>
+      <div class="kpi-card"><p class="kpi-label">Setup fee</p><p class="kpi-value">${org.setup_fee_waived ? 'Waived' : (org.setup_fee_paid ? 'Paid' : 'Unpaid')}</p></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      <button class="btn btn-sm" onclick="waiveFee(${org.id})" ${org.setup_fee_waived ? 'disabled' : ''}>Waive setup fee</button>
+      <button class="btn btn-sm" onclick="toggleFounding(${org.id}, ${!org.is_founding_partner})">${org.is_founding_partner ? 'Remove Founding Partner' : 'Designate Founding Partner'}</button>
+      <button class="btn btn-sm" onclick="applyPromo(${org.id})">Apply promo pricing</button>
+      <select id="planSelect${org.id}" onchange="changePlan(${org.id}, this.value)">
+        <option value="">Change plan…</option>
+        <option value="founding">Founding — $299</option>
+        <option value="growth">Growth — $499</option>
+        <option value="professional">Professional — $699</option>
+      </select>
+      ${org.billing_status === 'suspended'
+        ? `<button class="btn btn-sm" onclick="setStatus(${org.id}, 'active')">Reactivate</button>`
+        : `<button class="btn btn-sm" onclick="setStatus(${org.id}, 'suspended')">Suspend</button>`}
+    </div>
+    <p class="section-label">Users by role</p>
+    <p style="font-size:14px;margin:0 0 16px;">${d.userCountsByRole.map((r) => r.role + ': ' + r.n).join(' · ') || 'None yet'} · ${d.officeCount} office(s)</p>
+    <p class="section-label">Billing history</p>
+    <table class="data-table">
+      <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
+      <tbody>${d.invoices.map((i) => `<tr><td>${new Date(i.created_at).toLocaleDateString()}</td><td>${i.type}</td><td>${i.description || ''}</td><td>$${(i.amount_cents/100).toFixed(2)}</td><td>${i.status}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No billing events yet.</td></tr>'}</tbody>
+    </table>`;
+}
+
+async function waiveFee(id) {
+  await fetch('/api/platform-admin/agencies/' + id + '/waive-setup-fee', { method: 'POST' });
+  openAgency(id);
+}
+async function toggleFounding(id, value) {
+  const res = await fetch('/api/platform-admin/agencies/' + id + '/founding', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error); return; }
+  openAgency(id);
+}
+async function applyPromo(id) {
+  const val = prompt('New monthly price in dollars (e.g. 199):');
+  if (!val) return;
+  await fetch('/api/platform-admin/agencies/' + id + '/promo-price', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priceCents: Math.round(Number(val) * 100) }),
+  });
+  openAgency(id);
+}
+async function changePlan(id, plan) {
+  if (!plan) return;
+  await fetch('/api/platform-admin/agencies/' + id + '/plan', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan }),
+  });
+  openAgency(id);
+  loadAgencies();
+}
+async function setStatus(id, status) {
+  await fetch('/api/platform-admin/agencies/' + id + '/status', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+  });
+  openAgency(id);
+  loadAgencies();
+}
+
+async function loadLeads() {
+  const res = await fetch('/api/platform-admin/enterprise-leads');
+  const rows = await res.json();
+  document.getElementById('leadsTbody').innerHTML = rows.length ? rows.map((l) => `
+    <tr>
+      <td>${l.company}</td><td>${l.contact_name}</td><td>${l.email}</td><td>${l.office_count || '—'}</td><td>${l.employee_count || '—'}</td>
+      <td><span class="pill ${l.status === 'new' ? 'amber' : l.status === 'closed' ? 'gray' : 'green'}">${l.status}</span></td>
+      <td><select onchange="setLeadStatus(${l.id}, this.value)">
+        <option value="">Change…</option><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option>
+      </select></td>
+    </tr>`).join('') : '<tr><td colspan="7" class="empty">No enterprise leads yet.</td></tr>';
+}
+async function setLeadStatus(id, status) {
+  if (!status) return;
+  await fetch('/api/platform-admin/enterprise-leads/' + id, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+  });
+  loadLeads();
+}
+
+loadMe();
+loadOverview();
+</script>
+</body>
+</html>

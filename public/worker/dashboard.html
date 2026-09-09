@@ -50,6 +50,34 @@
       <p class="error-msg" id="submitErr"></p>
       <button class="btn btn-primary btn-block" id="submitBtn">Submit daily results</button>
     </div>
+
+    <div class="panel">
+      <p class="panel-title">Complete an activity — upload photo proof</p>
+      <div class="field">
+        <label>Activity</label>
+        <select id="proofActivitySelect"></select>
+      </div>
+      <div class="field" id="proofCustomTitleField" style="display:none;">
+        <label>Describe the activity</label>
+        <input id="proofCustomTitle" placeholder="e.g. Site walkthrough with client" />
+      </div>
+      <div class="field">
+        <label>Note (optional)</label>
+        <textarea id="proofNote" rows="2" placeholder="Anything the manager should know"></textarea>
+      </div>
+      <div class="field">
+        <label>Photo proof</label>
+        <input type="file" id="proofPhotoInput" accept="image/*" capture="environment" />
+      </div>
+      <img id="proofPreview" style="display:none;max-width:100%;border-radius:var(--r-md);margin-bottom:10px;" />
+      <p class="error-msg" id="proofErr"></p>
+      <button class="btn btn-primary btn-block" id="proofSubmitBtn">Mark Complete &amp; Submit</button>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Your recent submissions</p>
+      <div id="proofHistory"><p class="empty">Loading…</p></div>
+    </div>
   </div>
 </div>
 
@@ -196,8 +224,90 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
+// ---- Photo proof of completed activity ----
+const PROOF_STATUS_PILL = {
+  pending_verification: '<span class="pill amber">Pending Verification</span>',
+  verified: '<span class="pill green">Verified</span>',
+  needs_review: '<span class="pill red">Needs Review</span>',
+};
+
+function populateProofActivitySelect() {
+  const select = document.getElementById('proofActivitySelect');
+  const options = categories.map((c) => `<option value="${c.id}">${c.label}</option>`).join('');
+  select.innerHTML = options + '<option value="">Other (describe below)</option>';
+  toggleProofCustomTitle();
+}
+
+function toggleProofCustomTitle() {
+  const select = document.getElementById('proofActivitySelect');
+  document.getElementById('proofCustomTitleField').style.display = select.value === '' ? 'block' : 'none';
+}
+document.getElementById('proofActivitySelect').addEventListener('change', toggleProofCustomTitle);
+
+let selectedProofPhoto = null;
+document.getElementById('proofPhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  const errEl = document.getElementById('proofErr');
+  errEl.textContent = '';
+  if (!file) return;
+  try {
+    selectedProofPhoto = await fileToCompressedDataUrl(file, 640, 0.82);
+    const preview = document.getElementById('proofPreview');
+    preview.src = selectedProofPhoto;
+    preview.style.display = 'block';
+  } catch (err) {
+    errEl.textContent = err.message || 'Could not read that photo.';
+  }
+});
+
+document.getElementById('proofSubmitBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('proofErr');
+  errEl.textContent = '';
+  const select = document.getElementById('proofActivitySelect');
+  const categoryId = select.value || null;
+  const category = categories.find((c) => String(c.id) === String(categoryId));
+  const title = category ? category.label : document.getElementById('proofCustomTitle').value.trim();
+  const note = document.getElementById('proofNote').value.trim();
+
+  if (!title) { errEl.textContent = 'Choose an activity or describe what you completed.'; return; }
+  if (!selectedProofPhoto) { errEl.textContent = 'Take or upload a photo as proof.'; return; }
+
+  const res = await fetch('/api/worker/activity-proofs', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, categoryId, note, photoDataUrl: selectedProofPhoto }),
+  });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Submit failed'; return; }
+
+  selectedProofPhoto = null;
+  document.getElementById('proofPhotoInput').value = '';
+  document.getElementById('proofPreview').style.display = 'none';
+  document.getElementById('proofNote').value = '';
+  document.getElementById('proofCustomTitle').value = '';
+  loadProofHistory();
+});
+
+async function loadProofHistory() {
+  const res = await fetch('/api/worker/activity-proofs');
+  const rows = await res.json();
+  const el = document.getElementById('proofHistory');
+  el.innerHTML = rows.length
+    ? rows.map((p) => `
+      <div class="discrepancy-row" style="display:block;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+          <div>
+            <div class="who">${p.title} — <span style="font-weight:400;">COMPLETED</span></div>
+            <div class="why">Submitted: ${new Date(p.submitted_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}${p.note ? '<br/>Note: ' + p.note : ''}${p.review_comment ? '<br/>Manager: ' + p.review_comment : ''}</div>
+          </div>
+          ${PROOF_STATUS_PILL[p.status] || ''}
+        </div>
+        <a href="${p.photo_data_url}" target="_blank" style="font-size:13px;">Photo Proof: View Photo</a>
+      </div>`).join('')
+    : '<p class="empty">No completed activities submitted yet.</p>';
+}
+
 loadMe();
-loadToday();
+loadToday().then(() => { populateProofActivitySelect(); loadProofHistory(); });
 </script>
 </body>
 </html>

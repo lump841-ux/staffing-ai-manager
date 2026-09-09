@@ -57,17 +57,38 @@ async function run() {
   const { rows: orgCheck } = await db.query(`SELECT id FROM organizations LIMIT 1`);
   if (orgCheck.length) return; // already seeded
 
+  // This demo agency is designated the platform's first Founding Partner —
+  // $299/month locked in, $500 onboarding fee waived by the Super Admin.
   const { rows: orgRows } = await db.query(
-    `INSERT INTO organizations (name) VALUES ($1) RETURNING id`,
-    ['Only A Job — Staffing Agencies']
+    `INSERT INTO organizations
+       (name, plan, plan_price_cents, billing_status, is_founding_partner,
+        setup_fee_cents, setup_fee_waived, setup_fee_paid, next_billing_date,
+        payment_method_label, billing_contact_name, billing_email, signup_source)
+     VALUES ($1,'founding',29900,'active',TRUE,50000,TRUE,FALSE,$2,'Demo card ending in 4242','Jordan Rivera','owner@summitstaffing.demo','manual')
+     RETURNING id`,
+    ['Only A Job — Staffing Agencies', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)]
   );
   const orgId = orgRows[0].id;
+  await db.query(
+    `INSERT INTO billing_events (organization_id, type, amount_cents, description, status)
+     VALUES ($1,'waiver',0,'Founding Partner onboarding fee waived (initial demo agency)','waived')`,
+    [orgId]
+  );
 
   const { rows: branchRows } = await db.query(
     `INSERT INTO branches (organization_id, name, address) VALUES ($1, $2, $3) RETURNING id`,
     [orgId, 'Main Branch', '100 Commerce Way, Springfield']
   );
   const branchId = branchRows[0].id;
+
+  // Agency Owner/Admin — separate from the Manager account below, so the
+  // Billing & Subscription page (owner-only) has someone to log in as.
+  const ownerHash = await bcrypt.hash('owner123', 10);
+  await db.query(
+    `INSERT INTO users (organization_id, branch_id, role, name, email, password_hash)
+     VALUES ($1, $2, 'owner', $3, $4, $5)`,
+    [orgId, branchId, 'Jordan Rivera', 'owner@summitstaffing.demo', ownerHash]
+  );
 
   const managerHash = await bcrypt.hash('manager123', 10);
   const { rows: managerRows } = await db.query(
@@ -76,6 +97,14 @@ async function run() {
     [orgId, branchId, 'Alex Rivera', 'manager@summitstaffing.demo', managerHash]
   );
   const managerId = managerRows[0].id;
+
+  // Only A Job's own platform operator login (Super Admin area).
+  const platformHash = await bcrypt.hash('platform123', 10);
+  await db.query(
+    `INSERT INTO platform_admins (name, email, password_hash) VALUES ($1,$2,$3)
+     ON CONFLICT (email) DO NOTHING`,
+    ['Only A Job HQ', 'admin@onlyajob.platform', platformHash]
+  );
 
   const categoryIds = [];
   let sortOrder = 0;
@@ -168,10 +197,12 @@ async function run() {
     [orgId, managerId, mariaId, 'Check in with Maria about placement/meeting mismatch', today]
   );
 
-  console.log('Seeded demo organization "Only A Job — Staffing Agencies".');
+  console.log('Seeded demo organization "Only A Job — Staffing Agencies" (Founding Partner).');
+  console.log('Owner login (billing dashboard): owner@summitstaffing.demo / owner123');
   console.log('Manager login: manager@summitstaffing.demo / manager123');
   console.log('Worker logins (any of):');
   for (const w of workerIds) console.log(`  ${w.email} / worker123  (${w.name})`);
+  console.log('Super Admin login (/platform-admin/login.html): admin@onlyajob.platform / platform123');
 }
 
-module.exports = { run };
+module.exports = { run, DEFAULT_CATEGORIES, GOALS };

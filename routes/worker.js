@@ -115,6 +115,56 @@ router.post('/avatar', async (req, res) => {
   res.json({ ok: true, avatarUrl: dataUrl });
 });
 
+// ---- Photo proof of completed activity ----
+// Additive to the numeric daily submission above. A worker can attach
+// photo evidence to a specific completed activity/task. Verification
+// status is set ONLY by manager routes (routes/manager.js) — nothing here
+// accepts or writes a "verified" status, by design.
+
+router.get('/activity-proofs', async (req, res) => {
+  const workerId = req.session.user.id;
+  const { rows } = await db.query(
+    `SELECT ap.id, ap.title, ap.note, ap.photo_data_url, ap.status, ap.submitted_at,
+            ap.reviewed_at, ap.review_comment, ac.label AS category_label
+     FROM activity_proofs ap
+     LEFT JOIN activity_categories ac ON ac.id = ap.category_id
+     WHERE ap.worker_id = $1
+     ORDER BY ap.submitted_at DESC LIMIT 100`,
+    [workerId]
+  );
+  res.json(rows);
+});
+
+router.post('/activity-proofs', async (req, res) => {
+  const workerId = req.session.user.id;
+  const orgId = req.session.user.organizationId;
+  const { title, categoryId, note, photoDataUrl } = req.body || {};
+
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    return res.status(400).json({ error: 'Select or name the activity you completed.' });
+  }
+  if (typeof photoDataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp);base64,/.test(photoDataUrl)) {
+    return res.status(400).json({ error: 'A photo is required as proof of completion.' });
+  }
+  if (photoDataUrl.length > 900 * 1024) {
+    return res.status(400).json({ error: 'That photo is too large. Try again — it will be resized automatically.' });
+  }
+
+  let catId = null;
+  if (categoryId) {
+    const categories = await reporting.getActiveCategories(orgId);
+    if (categories.some((c) => c.id === Number(categoryId))) catId = Number(categoryId);
+  }
+
+  const { rows } = await db.query(
+    `INSERT INTO activity_proofs (organization_id, worker_id, category_id, title, note, photo_data_url)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     RETURNING id, title, note, photo_data_url, status, submitted_at`,
+    [orgId, workerId, catId, title.trim(), (note || '').trim() || null, photoDataUrl]
+  );
+  res.json({ ok: true, proof: rows[0] });
+});
+
 router.get('/history', async (req, res) => {
   const workerId = req.session.user.id;
   const orgId = req.session.user.organizationId;

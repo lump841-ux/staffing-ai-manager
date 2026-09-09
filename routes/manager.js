@@ -285,6 +285,46 @@ router.post('/debrief', async (req, res) => {
   res.json(rows[0]);
 });
 
+// ---- Photo proof review ----
+// Verification can only ever be set here, never by the worker's own routes.
+
+router.get('/activity-proofs', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const { status } = req.query;
+  const params = [orgId];
+  let where = 'ap.organization_id = $1';
+  if (status) {
+    params.push(status);
+    where += ` AND ap.status = $${params.length}`;
+  }
+  const { rows } = await db.query(
+    `SELECT ap.id, ap.worker_id, u.name AS worker_name, ap.title, ap.note, ap.photo_data_url,
+            ap.status, ap.submitted_at, ap.reviewed_at, ap.review_comment,
+            ac.label AS category_label, r.name AS reviewed_by_name
+     FROM activity_proofs ap
+     JOIN users u ON u.id = ap.worker_id
+     LEFT JOIN activity_categories ac ON ac.id = ap.category_id
+     LEFT JOIN users r ON r.id = ap.reviewed_by_user_id
+     WHERE ${where}
+     ORDER BY ap.submitted_at DESC LIMIT 200`,
+    params
+  );
+  res.json(rows);
+});
+
+router.put('/activity-proofs/:id', async (req, res) => {
+  const { status, comment } = req.body || {};
+  const valid = ['verified', 'needs_review'];
+  if (!valid.includes(status)) return res.status(400).json({ error: `status must be one of: ${valid.join(', ')}` });
+  const { rows } = await db.query(
+    `UPDATE activity_proofs SET status = $1, review_comment = $2, reviewed_by_user_id = $3, reviewed_at = NOW()
+     WHERE id = $4 AND organization_id = $5 RETURNING *`,
+    [status, comment || null, req.session.user.id, req.params.id, req.session.user.organizationId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Submission not found' });
+  res.json(rows[0]);
+});
+
 // ---- Manager: create a worker account ----
 
 router.post('/workers-new', async (req, res) => {

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Pricing — Only A Job | Staffing Intelligence Platform</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="marketing-shell">
+  <div class="marketing-header">
+    <div class="brand-lockup">
+      <img src="/manager/brand-logo.png" alt="Only A Job" />
+      <div><div class="brand-name">Only A Job</div><div class="brand-sub">Staffing Intelligence Platform</div></div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-sm" href="/manager/login.html">Manager sign in</a>
+      <a class="btn btn-sm" href="/worker/login.html">Worker sign in</a>
+    </div>
+  </div>
+
+  <div class="marketing-main">
+    <div class="marketing-hero">
+      <h1>Choose your plan</h1>
+      <p>Daily tracking, AI intelligence, and manager command centers for staffing agencies of every size.</p>
+    </div>
+
+    <div class="pricing-grid" id="pricingGrid">
+      <p class="empty">Loading plans…</p>
+    </div>
+
+    <div class="wizard-card" id="enterpriseCard" style="margin-top:40px;display:none;">
+      <h2>Enterprise — Contact Sales</h2>
+      <p class="sub">For large staffing companies, regional organizations, franchises, or custom implementations.</p>
+      <p class="error-msg" id="entErr"></p>
+      <p class="submitted-banner" id="entOk" style="display:none;">Thanks — our team will reach out shortly.</p>
+      <form id="enterpriseForm">
+        <div class="field"><label>Company</label><input id="entCompany" required /></div>
+        <div class="field"><label>Contact name</label><input id="entContact" required /></div>
+        <div class="field"><label>Email</label><input type="email" id="entEmail" required /></div>
+        <div class="field"><label>Phone</label><input id="entPhone" /></div>
+        <div class="field"><label>Number of offices</label><input id="entOffices" placeholder="e.g. 12" /></div>
+        <div class="field"><label>Approximate number of employees/users</label><input id="entUsers" placeholder="e.g. 250" /></div>
+        <div class="field"><label>Additional requirements</label><textarea id="entReqs" rows="3"></textarea></div>
+        <button class="btn btn-primary btn-block" type="submit">Submit to sales</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadPlans() {
+  const res = await fetch('/api/signup/plans');
+  const data = await res.json();
+  const grid = document.getElementById('pricingGrid');
+  grid.innerHTML = data.plans.map((p) => `
+    <div class="plan-card ${p.key === 'growth' ? 'featured' : ''}">
+      ${p.key === 'growth' ? '<div class="plan-badge">Most Popular</div>' : ''}
+      <div class="plan-name">${p.tagline}</div>
+      <div class="plan-price">$${p.priceDisplay}<small>/month</small></div>
+      ${p.limited ? `<div class="plan-slots">${p.slotsRemaining > 0 ? p.slotsRemaining + ' of 25 spots remaining' : 'SOLD OUT'}</div>` : ''}
+      <p class="plan-blurb">${p.blurb}</p>
+      <div class="plan-setup">+ $${p.setupFeeDisplay} one-time onboarding/configuration fee</div>
+      <a class="btn btn-primary btn-block" href="/signup.html?plan=${p.key}" ${p.limited && p.slotsRemaining <= 0 ? 'style="pointer-events:none;opacity:.5;"' : ''}>
+        ${p.limited && p.slotsRemaining <= 0 ? 'Sold out' : 'Start Your Agency'}
+      </a>
+    </div>`).join('') + `
+    <div class="plan-card">
+      <div class="plan-name">CUSTOM PRICING</div>
+      <div class="plan-price" style="font-size:22px;">Enterprise</div>
+      <p class="plan-blurb">Large staffing companies, regional organizations, franchises, and custom implementations.</p>
+      <button class="btn btn-primary btn-block" onclick="document.getElementById('enterpriseCard').scrollIntoView({behavior:'smooth'}); document.getElementById('enterpriseCard').style.display='block';">Contact Sales</button>
+    </div>`;
+}
+
+document.getElementById('enterpriseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('entErr');
+  errEl.textContent = '';
+  const body = {
+    company: document.getElementById('entCompany').value.trim(),
+    contactName: document.getElementById('entContact').value.trim(),
+    email: document.getElementById('entEmail').value.trim(),
+    phone: document.getElementById('entPhone').value.trim(),
+    officeCount: document.getElementById('entOffices').value.trim(),
+    employeeCount: document.getElementById('entUsers').value.trim(),
+    requirements: document.getElementById('entReqs').value.trim(),
+  };
+  const res = await fetch('/api/signup/enterprise-lead', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Could not submit'; return; }
+  document.getElementById('enterpriseForm').style.display = 'none';
+  document.getElementById('entOk').style.display = 'block';
+});
+
+loadPlans();
+</script>
+</body>
+</html>
