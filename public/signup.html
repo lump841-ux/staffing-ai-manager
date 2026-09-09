@@ -51,15 +51,8 @@
 
       <!-- Step 2: Billing -->
       <div class="wiz-panel" data-panel="2" style="display:none;">
-        <h2>Billing information</h2>
-        <p class="sub">Demo checkout — no real charge is made. In production this step is a live Stripe payment form.</p>
-        <div class="field"><label>Name on card</label><input id="cardName" placeholder="As it appears on the card" /></div>
-        <div class="field"><label>Card number</label><input id="cardNumber" maxlength="19" placeholder="4242 4242 4242 4242" /></div>
-        <div style="display:flex;gap:12px;">
-          <div class="field" style="flex:1;"><label>Expiry</label><input id="cardExpiry" placeholder="MM/YY" /></div>
-          <div class="field" style="flex:1;"><label>CVC</label><input id="cardCvc" placeholder="123" maxlength="4" /></div>
-        </div>
-        <p style="font-size:12px;color:var(--ink-3);">Only the last 4 digits are ever sent or stored — this demo never transmits a full card number.</p>
+        <h2>Billing</h2>
+        <p class="sub">Only A Job uses Stripe for payment processing. On the next step you'll be securely redirected to Stripe to enter your card — we never see or store your card number ourselves.</p>
         <div class="wizard-actions"><button class="btn" onclick="goStep(1)">Back</button><button class="btn btn-primary" onclick="goStep(3)">Continue</button></div>
       </div>
 
@@ -76,13 +69,13 @@
           <input type="checkbox" id="tosCheck" />
           <span>I accept the <a href="#" onclick="return false;">Terms of Service</a>, <a href="#" onclick="return false;">Privacy Policy</a>, and <a href="#" onclick="return false;">Subscription/Billing Terms</a>.</span>
         </label>
-        <div class="wizard-actions"><button class="btn" onclick="goStep(2)">Back</button><button class="btn btn-primary" id="payBtn" onclick="submitSignup()">Pay &amp; Create Agency</button></div>
+        <div class="wizard-actions"><button class="btn" onclick="goStep(2)">Back</button><button class="btn btn-primary" id="payBtn" onclick="submitSignup()">Continue to Secure Payment</button></div>
       </div>
 
-      <!-- Step 4: Success -->
+      <!-- Step 4: Success / confirming -->
       <div class="wiz-panel" data-panel="4" style="display:none;text-align:center;">
-        <h2>You're in! 🎉</h2>
-        <p class="sub">Your agency account has been created. Redirecting to your dashboard…</p>
+        <h2 id="doneHeading">Confirming your payment…</h2>
+        <p class="sub" id="doneSub">Hang on while we verify your payment with Stripe.</p>
       </div>
     </div>
   </div>
@@ -101,7 +94,38 @@ async function loadPlan() {
   selectedPlan = plans.find((p) => p.key === key) || plans[0];
   document.getElementById('selectedPlanLabel').textContent = selectedPlan.name + ' — $' + selectedPlan.priceDisplay + '/mo';
 }
-loadPlan();
+
+// If Stripe just redirected us back here with ?session_id=..., verify the
+// payment server-side and finish creating the agency. If it redirected
+// back with ?canceled=1, just let the person try again from Review & Pay.
+async function handleReturnFromStripe() {
+  const sessionId = params.get('session_id');
+  if (sessionId) {
+    goStep(4);
+    const res = await fetch('/api/signup/confirm?session_id=' + encodeURIComponent(sessionId));
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById('doneHeading').textContent = 'We could not confirm your payment';
+      document.getElementById('doneSub').textContent = data.error || 'Please contact Only A Job for help, or go back and try again.';
+      return true;
+    }
+    document.getElementById('doneHeading').textContent = "You're in! 🎉";
+    document.getElementById('doneSub').textContent = 'Your agency account has been created. Redirecting to your dashboard…';
+    setTimeout(() => { window.location.href = data.redirectTo || '/dashboard/manager'; }, 1400);
+    return true;
+  }
+  if (params.get('canceled')) {
+    goStep(3);
+    document.getElementById('wizErr').textContent = 'Payment was canceled — you can try again whenever you\'re ready.';
+    return true;
+  }
+  return false;
+}
+
+(async () => {
+  await loadPlan();
+  await handleReturnFromStripe();
+})();
 
 function goStep(n) {
   document.querySelectorAll('.wiz-panel').forEach((p) => p.style.display = 'none');
@@ -134,10 +158,6 @@ async function submitSignup() {
     errEl.textContent = 'You must accept the Terms of Service, Privacy Policy, and Subscription/Billing Terms.';
     return;
   }
-  const cardNumber = document.getElementById('cardNumber').value.replace(/\s+/g, '');
-  const last4 = cardNumber.slice(-4) || '4242';
-  const paymentMethodLabel = 'Demo card ending in ' + last4;
-
   const payload = {
     companyName: document.getElementById('companyName').value.trim(),
     officeName: document.getElementById('officeName').value.trim(),
@@ -147,7 +167,6 @@ async function submitSignup() {
     contactPhone: document.getElementById('contactPhone').value.trim(),
     password: document.getElementById('password').value,
     plan: selectedPlan.key,
-    paymentMethodLabel,
     tosAccepted: true,
   };
   if (!payload.companyName || !payload.contactName || !payload.contactEmail || !payload.password) {
@@ -157,19 +176,20 @@ async function submitSignup() {
 
   const btn = document.getElementById('payBtn');
   btn.disabled = true;
-  btn.textContent = 'Processing…';
+  btn.textContent = 'Redirecting to Stripe…';
   try {
     const res = await fetch('/api/signup/agency', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!res.ok) { errEl.textContent = data.error || 'Signup failed'; btn.disabled = false; btn.textContent = 'Pay & Create Agency'; return; }
-    goStep(4);
-    setTimeout(() => { window.location.href = data.redirectTo || '/dashboard/manager'; }, 1400);
+    if (!res.ok) { errEl.textContent = data.error || 'Signup failed'; btn.disabled = false; btn.textContent = 'Continue to Secure Payment'; return; }
+    // Hand off to Stripe's own hosted Checkout page — the card is entered
+    // there, never on this page.
+    window.location.href = data.checkoutUrl;
   } catch (err) {
     errEl.textContent = 'Could not reach the server.';
     btn.disabled = false;
-    btn.textContent = 'Pay & Create Agency';
+    btn.textContent = 'Continue to Secure Payment';
   }
 }
 </script>

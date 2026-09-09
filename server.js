@@ -4,6 +4,16 @@ const path = require('path');
 const db = require('./services/db');
 
 const app = express();
+// Needed on Render (behind a reverse proxy) so req.protocol reflects the
+// original https, not the internal http hop — Stripe success/cancel URLs
+// and session cookies depend on this being correct.
+app.set('trust proxy', 1);
+
+// Stripe webhook needs the exact raw request body to verify its signature,
+// so it must be mounted BEFORE express.json() below (which would otherwise
+// consume and parse the body first).
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), require('./routes/stripe-webhook'));
+
 // Raised from the 100kb default so worker profile-photo uploads (base64
 // data URLs, capped at ~900kb in routes/worker.js) fit in the request body.
 app.use(express.json({ limit: '2mb' }));

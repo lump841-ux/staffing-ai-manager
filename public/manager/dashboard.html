@@ -689,6 +689,8 @@ async function loadBilling() {
     <div class="panel">
       <p class="panel-title">Payment method</p>
       <p style="font-size:14px;">${b.paymentMethodLabel || 'No payment method on file'}</p>
+      <button class="btn btn-sm" onclick="openBillingPortal()" style="margin-top:8px;">Manage billing (update card, cancel)</button>
+      <p class="empty" id="portalErr" style="margin-top:6px;"></p>
     </div>
     <div class="panel">
       <p class="panel-title">Upgrade plan</p>
@@ -705,6 +707,15 @@ async function loadBilling() {
         </tbody>
       </table>
     </div>`;
+}
+
+async function openBillingPortal() {
+  const errEl = document.getElementById('portalErr');
+  if (errEl) errEl.textContent = '';
+  const res = await fetch('/api/billing/portal', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) { if (errEl) errEl.textContent = data.error || 'Could not open billing portal.'; return; }
+  window.location.href = data.url;
 }
 
 async function upgradePlan(planKey) {

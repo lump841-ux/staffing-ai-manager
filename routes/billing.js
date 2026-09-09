@@ -5,6 +5,7 @@ const express = require('express');
 const db = require('../services/db');
 const billingSvc = require('../services/billing');
 const { requireRole } = require('../services/auth-middleware');
+const { getStripe, isConfigured, baseUrlFrom } = require('../services/stripe');
 const router = express.Router();
 
 router.use(requireRole('owner'));
@@ -70,6 +71,32 @@ router.post('/upgrade', async (req, res) => {
     [orgId, plan.priceCents, `Changed plan to ${plan.name}${wasFounding ? ' (gave up Founding Partner rate)' : ''}`]
   );
   res.json({ ok: true, plan: plan.key });
+});
+
+// Hands the owner off to Stripe's own hosted Billing Portal — update card
+// on file, view Stripe-side invoices, or cancel. Only works for agencies
+// that actually have a stripe_customer_id (i.e. signed up through real
+// Stripe Checkout); pre-Stripe/legacy demo orgs won't have one yet.
+router.post('/portal', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  if (!isConfigured()) return res.status(503).json({ error: 'Payment processing is not configured on this server yet.' });
+
+  const { rows } = await db.query(`SELECT stripe_customer_id FROM organizations WHERE id = $1`, [orgId]);
+  if (!rows.length || !rows[0].stripe_customer_id) {
+    return res.status(400).json({ error: 'No Stripe billing account on file yet for this agency.' });
+  }
+
+  try {
+    const stripe = getStripe();
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: rows[0].stripe_customer_id,
+      return_url: `${baseUrlFrom(req)}/dashboard/manager`,
+    });
+    res.json({ url: portalSession.url });
+  } catch (err) {
+    console.error('Stripe billing portal session failed:', err.message);
+    res.status(502).json({ error: 'Could not open the billing portal right now.' });
+  }
 });
 
 module.exports = router;

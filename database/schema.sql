@@ -238,3 +238,24 @@ CREATE TABLE IF NOT EXISTS activity_proofs (
   reviewed_at TIMESTAMP,
   review_comment TEXT
 );
+
+-- Holds everything collected in the signup wizard (company, contact, owner
+-- login, chosen plan) while the person is over on Stripe Checkout paying.
+-- Nothing here becomes a real organizations/users row until Stripe confirms
+-- payment_status = 'paid' (see routes/signup.js GET /confirm) — this table
+-- is just a waiting room, never a source of account access on its own.
+CREATE TABLE IF NOT EXISTS pending_signups (
+  id SERIAL PRIMARY KEY,
+  company_name TEXT NOT NULL,
+  office_name TEXT,
+  office_address TEXT,
+  contact_name TEXT NOT NULL,
+  contact_email TEXT NOT NULL,
+  contact_phone TEXT,
+  password_hash TEXT NOT NULL,
+  plan TEXT NOT NULL,
+  stripe_checkout_session_id TEXT,
+  organization_id INTEGER REFERENCES organizations(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  consumed_at TIMESTAMP
+);
