@@ -27,6 +27,7 @@
     <div class="nav-item" data-view="friday">Friday Report</div>
     <div class="nav-item" data-view="tasks">Tasks</div>
     <div class="nav-item" data-view="ai">AI Assistant</div>
+    <div class="nav-item" data-view="settings">Settings</div>
     <div class="nav-item" id="billingNavItem" data-view="billing" style="display:none;">Billing</div>
     <div class="nav-footer">
       <div id="whoName"></div>
@@ -182,6 +183,24 @@
       </div>
     </div>
 
+    <div id="view-settings" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Settings</h1><div class="sub">Agency-wide options</div></div></div>
+      <div class="panel">
+        <p class="panel-title">Worker self clock-in</p>
+        <p style="font-size:14px;color:var(--text-2,#667085);margin:0 0 12px;max-width:520px;">
+          Off by default. Turn this on to let workers clock themselves in and out from their own dashboard —
+          their clock times show up on their own work history and are visible to you in their record. This is
+          separate from your manager-entered Time Entry, which always stays under your control.
+        </p>
+        <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;">
+          <input type="checkbox" id="selfClockinToggle" style="width:18px;height:18px;" />
+          <span id="selfClockinLabel">Allow workers to clock in/out themselves</span>
+        </label>
+        <p class="error-msg" id="settingsErr"></p>
+        <p id="settingsOwnerNote" style="font-size:12px;color:var(--text-2,#667085);margin-top:10px;display:none;">Only the agency owner can change this.</p>
+      </div>
+    </div>
+
     <div id="view-ai" class="view" style="display:none;">
       <div class="page-header"><div><h1>AI assistant</h1><div class="sub" id="aiModeNote"></div></div></div>
       <div class="ai-panel">
@@ -236,7 +255,7 @@ function switchView(view) {
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
   document.getElementById('view-' + view).style.display = 'block';
   document.querySelector('.nav-item[data-view="' + view + '"]').classList.add('active');
-  const loaders = { today: loadToday, week: loadWeek, workers: loadWorkers, categories: loadCategories, time: loadTime, review: loadReview, photos: loadPhotoReview, friday: loadFriday, tasks: loadTasks, ai: loadAI, billing: loadBilling };
+  const loaders = { today: loadToday, week: loadWeek, workers: loadWorkers, categories: loadCategories, time: loadTime, review: loadReview, photos: loadPhotoReview, friday: loadFriday, tasks: loadTasks, ai: loadAI, settings: loadSettings, billing: loadBilling };
   if (loaders[view]) loaders[view]();
 }
 
@@ -571,6 +590,27 @@ document.getElementById('taskParseBtn').addEventListener('click', async () => {
   });
   document.getElementById('taskParseInput').value = '';
   loadTasks();
+});
+
+// ---- Settings ----
+async function loadSettings() {
+  const res = await fetch('/api/manager/settings');
+  const data = await res.json();
+  document.getElementById('selfClockinToggle').checked = !!data.selfClockinEnabled;
+  const isOwner = myRole === 'owner';
+  document.getElementById('selfClockinToggle').disabled = !isOwner;
+  document.getElementById('settingsOwnerNote').style.display = isOwner ? 'none' : 'block';
+}
+
+document.getElementById('selfClockinToggle').addEventListener('change', async (e) => {
+  const errEl = document.getElementById('settingsErr');
+  errEl.textContent = '';
+  const res = await fetch('/api/manager/settings', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selfClockinEnabled: e.target.checked }),
+  });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Could not save that.'; e.target.checked = !e.target.checked; return; }
 });
 
 // ---- AI assistant ----

@@ -180,4 +180,111 @@ router.get('/history', async (req, res) => {
   res.json({ days });
 });
 
+// ---- My Work History ----
+// The worker's own permanent, timestamped record — every daily submission
+// ever made (with the category breakdown and notes as submitted) plus, if
+// self clock-in is turned on for the agency, every clock in/out. Always
+// scoped to the caller's own worker_id, same as every other route here.
+
+router.get('/work-history', async (req, res) => {
+  const workerId = req.session.user.id;
+  const orgId = req.session.user.organizationId;
+
+  const { rows: reportRows } = await db.query(
+    `SELECT dr.id, dr.report_date, dr.notes, dr.obstacles, dr.submitted_at,
+            drv.category_id, drv.value, ac.label AS category_label
+     FROM daily_reports dr
+     LEFT JOIN daily_report_values drv ON drv.daily_report_id = dr.id
+     LEFT JOIN activity_categories ac ON ac.id = drv.category_id
+     WHERE dr.worker_id = $1
+     ORDER BY dr.report_date DESC, dr.id DESC
+     LIMIT 3000`,
+    [workerId]
+  );
+
+  const byReport = {};
+  const order = [];
+  for (const r of reportRows) {
+    if (!byReport[r.id]) {
+      byReport[r.id] = {
+        id: r.id,
+        date: r.report_date,
+        notes: r.notes,
+        obstacles: r.obstacles,
+        submittedAt: r.submitted_at,
+        values: [],
+      };
+      order.push(r.id);
+    }
+    if (r.category_id != null) {
+      byReport[r.id].values.push({ label: r.category_label, value: r.value });
+    }
+  }
+  const dailyReports = order.map((id) => byReport[id]);
+
+  const { rows: clockRows } = await db.query(
+    `SELECT id, clock_in_at, clock_out_at, notes FROM worker_clock_entries
+     WHERE worker_id = $1 ORDER BY clock_in_at DESC LIMIT 1000`,
+    [workerId]
+  );
+
+  const { rows: orgRows } = await db.query(`SELECT self_clockin_enabled FROM organizations WHERE id = $1`, [orgId]);
+
+  res.json({
+    selfClockinEnabled: !!(orgRows[0] && orgRows[0].self_clockin_enabled),
+    dailyReports,
+    clockEntries: clockRows,
+  });
+});
+
+// ---- Self clock-in (optional, off by default — see organizations.self_clockin_enabled) ----
+// This is a switch the agency owner controls (routes/manager.js PUT
+// /settings). When off, every route below refuses with 403 rather than
+// silently no-op'ing, so a disabled feature never quietly logs time.
+
+router.get('/clock-status', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const workerId = req.session.user.id;
+  const { rows: orgRows } = await db.query(`SELECT self_clockin_enabled FROM organizations WHERE id = $1`, [orgId]);
+  const enabled = !!(orgRows[0] && orgRows[0].self_clockin_enabled);
+  const { rows } = await db.query(
+    `SELECT id, clock_in_at FROM worker_clock_entries WHERE worker_id = $1 AND clock_out_at IS NULL ORDER BY clock_in_at DESC LIMIT 1`,
+    [workerId]
+  );
+  res.json({ enabled, openEntry: rows[0] || null });
+});
+
+router.post('/clock-in', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const workerId = req.session.user.id;
+  const { rows: orgRows } = await db.query(`SELECT self_clockin_enabled FROM organizations WHERE id = $1`, [orgId]);
+  if (!orgRows[0] || !orgRows[0].self_clockin_enabled) {
+    return res.status(403).json({ error: 'Self clock-in is not turned on for your agency.' });
+  }
+  const { rows: openRows } = await db.query(
+    `SELECT id FROM worker_clock_entries WHERE worker_id = $1 AND clock_out_at IS NULL`,
+    [workerId]
+  );
+  if (openRows.length) return res.status(400).json({ error: 'You are already clocked in.' });
+
+  const { rows } = await db.query(
+    `INSERT INTO worker_clock_entries (organization_id, worker_id) VALUES ($1, $2) RETURNING id, clock_in_at`,
+    [orgId, workerId]
+  );
+  res.json({ ok: true, entry: rows[0] });
+});
+
+router.post('/clock-out', async (req, res) => {
+  const workerId = req.session.user.id;
+  const { notes } = req.body || {};
+  const { rows } = await db.query(
+    `UPDATE worker_clock_entries SET clock_out_at = NOW(), notes = COALESCE($1, notes)
+     WHERE worker_id = $2 AND clock_out_at IS NULL
+     RETURNING id, clock_in_at, clock_out_at`,
+    [notes || null, workerId]
+  );
+  if (!rows.length) return res.status(400).json({ error: 'You are not currently clocked in.' });
+  res.json({ ok: true, entry: rows[0] });
+});
+
 module.exports = router;

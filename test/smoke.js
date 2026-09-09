@@ -157,6 +157,44 @@ async function main() {
     res = await request(port, 'GET', '/api/manager/tasks', null, managerCookie);
     ok(res.json.length >= 2, 'Task list includes the seeded task and the newly created one');
 
+    console.log('\n── Worker work history ──');
+    res = await request(port, 'GET', '/api/worker/work-history', null, workerCookie);
+    ok(res.status === 200 && Array.isArray(res.json.dailyReports), 'Worker can read their own work history');
+    ok(res.json.dailyReports.some((r) => r.notes === 'test note'), "Today's submission appears in the worker's own history, notes intact");
+    ok(res.json.selfClockinEnabled === false, 'Self clock-in reports as off by default');
+
+    console.log('\n── Self clock-in (off-by-default, owner-controlled toggle) ──');
+    res = await request(port, 'GET', '/api/manager/settings', null, managerCookie);
+    ok(res.status === 200 && res.json.selfClockinEnabled === false, 'Settings show self clock-in off by default');
+
+    res = await request(port, 'POST', '/api/worker/clock-in', {}, workerCookie);
+    ok(res.status === 403, 'Worker cannot clock in while the feature is off');
+
+    res = await request(port, 'PUT', '/api/manager/settings', { selfClockinEnabled: true }, managerCookie);
+    ok(res.status === 403, 'Non-owner manager cannot change the self clock-in setting');
+
+    res = await request(port, 'POST', '/api/auth/login', { email: 'owner@summitstaffing.demo', password: 'owner123' });
+    ok(res.status === 200 && res.json.user.role === 'owner', 'Owner logs in successfully');
+    const ownerCookie = getCookie(res);
+
+    res = await request(port, 'PUT', '/api/manager/settings', { selfClockinEnabled: true }, ownerCookie);
+    ok(res.status === 200 && res.json.selfClockinEnabled === true, 'Owner can turn self clock-in on');
+
+    res = await request(port, 'GET', '/api/worker/clock-status', null, workerCookie);
+    ok(res.status === 200 && res.json.enabled === true && res.json.openEntry === null, 'Worker sees clock-in now enabled, nothing open yet');
+
+    res = await request(port, 'POST', '/api/worker/clock-in', {}, workerCookie);
+    ok(res.status === 200 && !!res.json.entry.clock_in_at, 'Worker can clock in once the feature is on');
+
+    res = await request(port, 'POST', '/api/worker/clock-in', {}, workerCookie);
+    ok(res.status === 400, 'Worker cannot clock in twice in a row');
+
+    res = await request(port, 'POST', '/api/worker/clock-out', {}, workerCookie);
+    ok(res.status === 200 && !!res.json.entry.clock_out_at, 'Worker can clock out');
+
+    res = await request(port, 'GET', '/api/worker/work-history', null, workerCookie);
+    ok(res.json.selfClockinEnabled === true && res.json.clockEntries.length === 1, "Clock entry shows up in the worker's own history once enabled");
+
     console.log('\n── Page routing / RBAC on pages ──');
     res = await request(port, 'GET', '/dashboard/manager', null, workerCookie);
     ok(res.status === 302, 'Worker hitting the manager dashboard page is redirected, not shown the page');

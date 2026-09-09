@@ -325,6 +325,30 @@ router.put('/activity-proofs/:id', async (req, res) => {
   res.json(rows[0]);
 });
 
+// ---- Agency settings ----
+// Currently just the self clock-in switch. Any manager can view it;
+// changing it is owner-only, since it's an org-wide policy decision.
+
+router.get('/settings', async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT self_clockin_enabled FROM organizations WHERE id = $1`,
+    [req.session.user.organizationId]
+  );
+  res.json({ selfClockinEnabled: !!(rows[0] && rows[0].self_clockin_enabled) });
+});
+
+router.put('/settings', async (req, res) => {
+  if (req.session.user.role !== 'owner') {
+    return res.status(403).json({ error: 'Only the agency owner can change this setting.' });
+  }
+  const { selfClockinEnabled } = req.body || {};
+  await db.query(
+    `UPDATE organizations SET self_clockin_enabled = $1 WHERE id = $2`,
+    [!!selfClockinEnabled, req.session.user.organizationId]
+  );
+  res.json({ ok: true, selfClockinEnabled: !!selfClockinEnabled });
+});
+
 // ---- Manager: create a worker account ----
 
 router.post('/workers-new', async (req, res) => {

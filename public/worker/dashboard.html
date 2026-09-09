@@ -33,6 +33,13 @@
     <div id="submittedBanner" class="submitted-banner" style="display:none;">You've submitted today's results. You can still make changes below.</div>
     <p class="error-msg" id="avatarErr"></p>
 
+    <div class="panel" id="clockPanel" style="display:none;">
+      <p class="panel-title">Clock in / out</p>
+      <p id="clockStatusText" style="font-size:14px;color:var(--text-2,#667085);margin:0 0 10px;">—</p>
+      <p class="error-msg" id="clockErr"></p>
+      <button class="btn btn-primary btn-block" id="clockBtn">Clock in</button>
+    </div>
+
     <p class="section-label">Today's goal and progress</p>
     <div class="ring-grid" id="ringGrid"></div>
 
@@ -77,6 +84,12 @@
     <div class="panel">
       <p class="panel-title">Your recent submissions</p>
       <div id="proofHistory"><p class="empty">Loading…</p></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">My work history</p>
+      <p style="font-size:13px;color:var(--text-2,#667085);margin:0 0 12px;">Your own permanent, timestamped record — every day you've submitted, on your account.</p>
+      <div id="workHistoryList"><p class="empty">Loading…</p></div>
     </div>
   </div>
 </div>
@@ -306,8 +319,91 @@ async function loadProofHistory() {
     : '<p class="empty">No completed activities submitted yet.</p>';
 }
 
+// ---- Self clock-in (only shown if the agency owner has turned it on) ----
+let openClockEntry = null;
+
+function fmtClockTime(iso) {
+  return new Date(iso).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
+}
+
+function renderClockStatus() {
+  const btn = document.getElementById('clockBtn');
+  const text = document.getElementById('clockStatusText');
+  if (openClockEntry) {
+    text.textContent = 'Clocked in since ' + fmtClockTime(openClockEntry.clock_in_at);
+    btn.textContent = 'Clock out';
+    btn.classList.remove('btn-primary');
+  } else {
+    text.textContent = "You're not clocked in.";
+    btn.textContent = 'Clock in';
+    btn.classList.add('btn-primary');
+  }
+}
+
+async function loadClockStatus() {
+  const res = await fetch('/api/worker/clock-status');
+  if (!res.ok) return;
+  const data = await res.json();
+  document.getElementById('clockPanel').style.display = data.enabled ? 'block' : 'none';
+  openClockEntry = data.openEntry;
+  if (data.enabled) renderClockStatus();
+}
+
+document.getElementById('clockBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('clockErr');
+  errEl.textContent = '';
+  const endpoint = openClockEntry ? '/api/worker/clock-out' : '/api/worker/clock-in';
+  const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Could not update your clock status.'; return; }
+  await loadClockStatus();
+  loadWorkHistory();
+});
+
+// ---- My work history ----
+function fmtHistDate(d) {
+  return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+async function loadWorkHistory() {
+  const res = await fetch('/api/worker/work-history');
+  const el = document.getElementById('workHistoryList');
+  if (!res.ok) { el.innerHTML = '<p class="empty">Could not load your history.</p>'; return; }
+  const data = await res.json();
+
+  const clockByDay = {};
+  if (data.selfClockinEnabled) {
+    for (const c of data.clockEntries) {
+      const day = new Date(c.clock_in_at).toDateString();
+      (clockByDay[day] = clockByDay[day] || []).push(c);
+    }
+  }
+
+  if (!data.dailyReports.length) {
+    el.innerHTML = '<p class="empty">Nothing submitted yet — your history will build up here as you go.</p>';
+    return;
+  }
+
+  el.innerHTML = data.dailyReports.map((r) => {
+    const values = r.values.filter((v) => v.label).map((v) => `${v.label}: ${v.value}`).join(' &middot; ');
+    const day = new Date(r.date + 'T00:00:00').toDateString();
+    const clockRows = (clockByDay[day] || []).map((c) => {
+      const out = c.clock_out_at ? fmtClockTime(c.clock_out_at) : 'still clocked in';
+      return `<div style="font-size:12px;color:var(--text-2,#667085);">Clocked ${fmtClockTime(c.clock_in_at)} → ${out}</div>`;
+    }).join('');
+    return `
+      <div class="discrepancy-row" style="display:block;">
+        <div class="who">${fmtHistDate(r.date)}</div>
+        <div class="why">Submitted ${fmtClockTime(r.submittedAt)}${values ? '<br/>' + values : ''}${r.notes ? '<br/>Notes: ' + r.notes : ''}</div>
+        ${clockRows}
+      </div>`;
+  }).join('');
+}
+
 loadMe();
 loadToday().then(() => { populateProofActivitySelect(); loadProofHistory(); });
+loadClockStatus();
+loadWorkHistory();
 </script>
 </body>
 </html>

@@ -259,3 +259,29 @@ CREATE TABLE IF NOT EXISTS pending_signups (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   consumed_at TIMESTAMP
 );
+
+-- ════════════════════════════════════════════════════════════════════
+-- Worker personal work history + optional self clock-in.
+-- The work history itself (daily_reports/activity_proofs, both already
+-- worker_id-scoped) needed no new storage — it's exposed permanently on
+-- the worker's own account via a new read-only endpoint. Self clock-in is
+-- a genuinely new, OFF-by-default feature: an org-level switch the owner
+-- controls, plus its own table so it never touches worker_time_entries
+-- (which stays manager-only, per the existing invariant in routes/worker.js).
+-- ════════════════════════════════════════════════════════════════════
+
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS self_clockin_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Worker-initiated clock in/out. Entirely separate from worker_time_entries
+-- (manager-only, payroll-facing) — this is the worker's own self-reported
+-- record, visible to the worker on their own history and readable by
+-- managers for reference, but never a source managers write into.
+CREATE TABLE IF NOT EXISTS worker_clock_entries (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  worker_id INTEGER NOT NULL REFERENCES users(id),
+  clock_in_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  clock_out_at TIMESTAMP,
+  notes TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
