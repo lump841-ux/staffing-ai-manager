@@ -391,20 +391,36 @@ async function loadWorkHistory() {
     return;
   }
 
-  el.innerHTML = data.dailyReports.map((r) => {
+  el.innerHTML = data.dailyReports.map((r, i) => {
     const values = r.values.filter((v) => v.label).map((v) => `${v.label}: ${v.value}`).join(' &middot; ');
     const day = toDateObj(r.date).toDateString();
     const clockRows = (clockByDay[day] || []).map((c) => {
       const out = c.clock_out_at ? fmtClockTime(c.clock_out_at) : 'still clocked in';
       return `<div style="font-size:12px;color:var(--text-2,#667085);">Clocked ${fmtClockTime(c.clock_in_at)} → ${out}</div>`;
     }).join('');
+    const count = r.values.filter((v) => v.label).length;
     return `
-      <div class="discrepancy-row" style="display:block;">
-        <div class="who">${fmtHistDate(r.date)}</div>
-        <div class="why">Submitted ${fmtClockTime(r.submittedAt)}${values ? '<br/>' + values : ''}${r.notes ? '<br/>Notes: ' + r.notes : ''}</div>
-        ${clockRows}
+      <div class="discrepancy-row" style="display:block;padding:0;overflow:hidden;">
+        <button type="button" class="hist-toggle" data-idx="${i}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;background:none;border:none;cursor:pointer;padding:12px 14px;text-align:left;font:inherit;">
+          <span class="who" style="margin:0;">${fmtHistDate(r.date)}</span>
+          <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2,#667085);white-space:nowrap;">${count} logged<span class="hist-chevron" style="display:inline-block;transition:transform .15s;">&#9656;</span></span>
+        </button>
+        <div class="hist-detail" style="display:none;padding:0 14px 14px;">
+          <div class="why">Submitted ${fmtClockTime(r.submittedAt)}${values ? '<br/>' + values : ''}${r.notes ? '<br/>Notes: ' + r.notes : ''}</div>
+          ${clockRows}
+        </div>
       </div>`;
   }).join('');
+
+  el.querySelectorAll('.hist-toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const detail = btn.nextElementSibling;
+      const chevron = btn.querySelector('.hist-chevron');
+      const open = detail.style.display !== 'none';
+      detail.style.display = open ? 'none' : 'block';
+      chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
+    });
+  });
 }
 
 loadMe();
