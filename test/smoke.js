@@ -189,11 +189,38 @@ async function main() {
     res = await request(port, 'POST', '/api/worker/clock-in', {}, workerCookie);
     ok(res.status === 400, 'Worker cannot clock in twice in a row');
 
+    console.log('\n── Breaks (within a clock-in) ──');
+    res = await request(port, 'POST', '/api/worker/break-end', {}, workerCookie);
+    ok(res.status === 400, 'Worker cannot end a break with none open');
+
+    res = await request(port, 'POST', '/api/worker/break-start', {}, workerCookie);
+    ok(res.status === 200 && !!res.json.breakEntry.break_start_at, 'Worker can start a break while clocked in');
+
+    res = await request(port, 'POST', '/api/worker/break-start', {}, workerCookie);
+    ok(res.status === 400, 'Worker cannot start a second break while already on one');
+
+    res = await request(port, 'GET', '/api/worker/clock-status', null, workerCookie);
+    ok(res.status === 200 && res.json.openBreak !== null, 'Clock status reflects the open break');
+
+    res = await request(port, 'POST', '/api/worker/break-end', {}, workerCookie);
+    ok(res.status === 200 && !!res.json.breakEntry.break_end_at, 'Worker can end the break');
+
+    res = await request(port, 'GET', '/api/worker/clock-status', null, workerCookie);
+    ok(res.status === 200 && res.json.openBreak === null, 'Clock status shows no open break after ending it');
+
+    // Start a second break and clock out without ending it — clock-out must
+    // auto-close any dangling open break.
+    res = await request(port, 'POST', '/api/worker/break-start', {}, workerCookie);
+    ok(res.status === 200, 'Worker can start another break');
+
     res = await request(port, 'POST', '/api/worker/clock-out', {}, workerCookie);
     ok(res.status === 200 && !!res.json.entry.clock_out_at, 'Worker can clock out');
 
     res = await request(port, 'GET', '/api/worker/work-history', null, workerCookie);
     ok(res.json.selfClockinEnabled === true && res.json.clockEntries.length === 1, "Clock entry shows up in the worker's own history once enabled");
+    const clockEntryWithBreaks = res.json.clockEntries[0];
+    ok(Array.isArray(clockEntryWithBreaks.breaks) && clockEntryWithBreaks.breaks.length === 2, 'Both breaks appear nested under the clock entry in work history');
+    ok(clockEntryWithBreaks.breaks.every((b) => !!b.break_end_at), 'Clocking out auto-closed the dangling open break');
 
     console.log('\n── Page routing / RBAC on pages ──');
     res = await request(port, 'GET', '/dashboard/manager', null, workerCookie);

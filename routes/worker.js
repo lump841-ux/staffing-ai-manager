@@ -228,6 +228,17 @@ router.get('/work-history', async (req, res) => {
     [workerId]
   );
 
+  const { rows: breakRows } = await db.query(
+    `SELECT id, clock_entry_id, break_start_at, break_end_at FROM worker_break_entries
+     WHERE worker_id = $1 ORDER BY break_start_at DESC LIMIT 2000`,
+    [workerId]
+  );
+  const breaksByClockEntry = {};
+  for (const b of breakRows) {
+    (breaksByClockEntry[b.clock_entry_id] = breaksByClockEntry[b.clock_entry_id] || []).push(b);
+  }
+  for (const c of clockRows) c.breaks = breaksByClockEntry[c.id] || [];
+
   const { rows: orgRows } = await db.query(`SELECT self_clockin_enabled FROM organizations WHERE id = $1`, [orgId]);
 
   res.json({
@@ -251,7 +262,18 @@ router.get('/clock-status', async (req, res) => {
     `SELECT id, clock_in_at FROM worker_clock_entries WHERE worker_id = $1 AND clock_out_at IS NULL ORDER BY clock_in_at DESC LIMIT 1`,
     [workerId]
   );
-  res.json({ enabled, openEntry: rows[0] || null });
+  const openEntry = rows[0] || null;
+
+  let openBreak = null;
+  if (openEntry) {
+    const { rows: breakRows } = await db.query(
+      `SELECT id, break_start_at FROM worker_break_entries WHERE clock_entry_id = $1 AND break_end_at IS NULL ORDER BY break_start_at DESC LIMIT 1`,
+      [openEntry.id]
+    );
+    openBreak = breakRows[0] || null;
+  }
+
+  res.json({ enabled, openEntry, openBreak });
 });
 
 router.post('/clock-in', async (req, res) => {
@@ -277,6 +299,15 @@ router.post('/clock-in', async (req, res) => {
 router.post('/clock-out', async (req, res) => {
   const workerId = req.session.user.id;
   const { notes } = req.body || {};
+
+  // Auto-close any still-open break so clocking out never leaves a
+  // dangling break_end_at = NULL row behind.
+  await db.query(
+    `UPDATE worker_break_entries SET break_end_at = NOW()
+     WHERE worker_id = $1 AND break_end_at IS NULL`,
+    [workerId]
+  );
+
   const { rows } = await db.query(
     `UPDATE worker_clock_entries SET clock_out_at = NOW(), notes = COALESCE($1, notes)
      WHERE worker_id = $2 AND clock_out_at IS NULL
@@ -285,6 +316,40 @@ router.post('/clock-out', async (req, res) => {
   );
   if (!rows.length) return res.status(400).json({ error: 'You are not currently clocked in.' });
   res.json({ ok: true, entry: rows[0] });
+});
+
+router.post('/break-start', async (req, res) => {
+  const workerId = req.session.user.id;
+  const { rows: openEntryRows } = await db.query(
+    `SELECT id FROM worker_clock_entries WHERE worker_id = $1 AND clock_out_at IS NULL`,
+    [workerId]
+  );
+  if (!openEntryRows.length) return res.status(400).json({ error: 'You need to be clocked in to start a break.' });
+  const clockEntryId = openEntryRows[0].id;
+
+  const { rows: openBreakRows } = await db.query(
+    `SELECT id FROM worker_break_entries WHERE clock_entry_id = $1 AND break_end_at IS NULL`,
+    [clockEntryId]
+  );
+  if (openBreakRows.length) return res.status(400).json({ error: 'You are already on a break.' });
+
+  const { rows } = await db.query(
+    `INSERT INTO worker_break_entries (clock_entry_id, worker_id) VALUES ($1, $2) RETURNING id, break_start_at`,
+    [clockEntryId, workerId]
+  );
+  res.json({ ok: true, breakEntry: rows[0] });
+});
+
+router.post('/break-end', async (req, res) => {
+  const workerId = req.session.user.id;
+  const { rows } = await db.query(
+    `UPDATE worker_break_entries SET break_end_at = NOW()
+     WHERE worker_id = $1 AND break_end_at IS NULL
+     RETURNING id, break_start_at, break_end_at`,
+    [workerId]
+  );
+  if (!rows.length) return res.status(400).json({ error: 'You are not currently on a break.' });
+  res.json({ ok: true, breakEntry: rows[0] });
 });
 
 module.exports = router;

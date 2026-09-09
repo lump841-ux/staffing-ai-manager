@@ -38,6 +38,7 @@
       <p id="clockStatusText" style="font-size:14px;color:var(--text-2,#667085);margin:0 0 10px;">—</p>
       <p class="error-msg" id="clockErr"></p>
       <button class="btn btn-primary btn-block" id="clockBtn">Clock in</button>
+      <button class="btn btn-block" id="breakBtn" style="display:none;margin-top:8px;">Start break</button>
     </div>
 
     <p class="section-label">Today's goal and progress</p>
@@ -321,6 +322,7 @@ async function loadProofHistory() {
 
 // ---- Self clock-in (only shown if the agency owner has turned it on) ----
 let openClockEntry = null;
+let openBreakEntry = null;
 
 function fmtClockTime(iso) {
   return new Date(iso).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
@@ -329,14 +331,30 @@ function fmtClockTime(iso) {
 function renderClockStatus() {
   const btn = document.getElementById('clockBtn');
   const text = document.getElementById('clockStatusText');
+  const breakBtn = document.getElementById('breakBtn');
+
   if (openClockEntry) {
-    text.textContent = 'Clocked in since ' + fmtClockTime(openClockEntry.clock_in_at);
+    breakBtn.style.display = 'block';
+    if (openBreakEntry) {
+      text.textContent = 'On break since ' + fmtClockTime(openBreakEntry.break_start_at) + ' (clocked in since ' + fmtClockTime(openClockEntry.clock_in_at) + ')';
+      breakBtn.textContent = 'End break';
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+    } else {
+      text.textContent = 'Clocked in since ' + fmtClockTime(openClockEntry.clock_in_at);
+      breakBtn.textContent = 'Start break';
+      btn.disabled = false;
+      btn.style.opacity = '';
+    }
     btn.textContent = 'Clock out';
     btn.classList.remove('btn-primary');
   } else {
+    breakBtn.style.display = 'none';
     text.textContent = "You're not clocked in.";
     btn.textContent = 'Clock in';
     btn.classList.add('btn-primary');
+    btn.disabled = false;
+    btn.style.opacity = '';
   }
 }
 
@@ -346,6 +364,7 @@ async function loadClockStatus() {
   const data = await res.json();
   document.getElementById('clockPanel').style.display = data.enabled ? 'block' : 'none';
   openClockEntry = data.openEntry;
+  openBreakEntry = data.openBreak;
   if (data.enabled) renderClockStatus();
 }
 
@@ -356,6 +375,17 @@ document.getElementById('clockBtn').addEventListener('click', async () => {
   const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   const data = await res.json();
   if (!res.ok) { errEl.textContent = data.error || 'Could not update your clock status.'; return; }
+  await loadClockStatus();
+  loadWorkHistory();
+});
+
+document.getElementById('breakBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('clockErr');
+  errEl.textContent = '';
+  const endpoint = openBreakEntry ? '/api/worker/break-end' : '/api/worker/break-start';
+  const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Could not update your break status.'; return; }
   await loadClockStatus();
   loadWorkHistory();
 });
@@ -396,7 +426,11 @@ async function loadWorkHistory() {
     const day = toDateObj(r.date).toDateString();
     const clockRows = (clockByDay[day] || []).map((c) => {
       const out = c.clock_out_at ? fmtClockTime(c.clock_out_at) : 'still clocked in';
-      return `<div style="font-size:12px;color:var(--text-2,#667085);">Clocked ${fmtClockTime(c.clock_in_at)} → ${out}</div>`;
+      const breakLines = (c.breaks || []).map((b) => {
+        const bOut = b.break_end_at ? fmtClockTime(b.break_end_at) : 'still on break';
+        return `<div style="font-size:12px;color:var(--text-2,#667085);padding-left:14px;">Break ${fmtClockTime(b.break_start_at)} → ${bOut}</div>`;
+      }).join('');
+      return `<div style="font-size:12px;color:var(--text-2,#667085);">Clocked ${fmtClockTime(c.clock_in_at)} → ${out}</div>${breakLines}`;
     }).join('');
     const count = r.values.filter((v) => v.label).length;
     return `

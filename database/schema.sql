@@ -285,3 +285,15 @@ CREATE TABLE IF NOT EXISTS worker_clock_entries (
   notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Breaks within a single clock-in. A worker can take more than one break
+-- per shift, so this is its own table rather than columns on the clock
+-- entry. Always tied to one open (or since-closed) worker_clock_entries row.
+CREATE TABLE IF NOT EXISTS worker_break_entries (
+  id SERIAL PRIMARY KEY,
+  clock_entry_id INTEGER NOT NULL REFERENCES worker_clock_entries(id),
+  worker_id INTEGER NOT NULL REFERENCES users(id),
+  break_start_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  break_end_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
