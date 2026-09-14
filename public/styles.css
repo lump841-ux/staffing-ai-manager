@@ -322,6 +322,8 @@ table.data-table tr:last-child td { border-bottom: none; }
 .checkbox-row { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink-2); margin: 16px 0; }
 .checkbox-row input { margin-top: 3px; }
 
+.client-split { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; align-items: start; }
+
 @media (max-width: 860px) {
   .app-shell { flex-direction: column; }
   .app-nav { width: 100%; flex-direction: row; overflow-x: auto; padding: 10px 12px; align-items: center; }
@@ -330,4 +332,5 @@ table.data-table tr:last-child td { border-bottom: none; }
   .app-nav .nav-item { white-space: nowrap; margin-bottom: 0; margin-right: 4px; }
   .app-main { padding: 18px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .client-split { grid-template-columns: 1fr; }
 }

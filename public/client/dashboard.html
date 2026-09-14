@@ -11,43 +11,54 @@
 <link rel="shortcut icon" href="/favicon.ico" />
 </head>
 <body>
-<div class="worker-shell">
-  <div class="worker-hero-topband">
+<div class="app-shell">
+  <div class="app-nav">
     <div class="brand-lockup">
-      <img src="/worker/brand-logo-full.png" alt="Twanova — Staffing Solutions" />
+      <img src="/worker/brand-logo-compact.png" alt="Twanova" style="height:28px;width:auto;" />
+    </div>
+    <div class="nav-item active" data-view="workforce">Today's Workforce</div>
+    <div class="nav-footer">
+      <div id="whoName" style="font-weight:600;"></div>
+      <div id="whoCompany" style="color:var(--ink-3);"></div>
+      <button class="btn btn-sm" id="logoutBtn">Sign out</button>
     </div>
   </div>
-  <div class="worker-hero">
-    <div class="worker-hero-row">
+
+  <div class="app-main">
+    <div class="page-header">
       <div>
-        <div class="who" id="whoName">—</div>
-        <div class="date" id="whoDate"></div>
+        <h1>Today's Workforce</h1>
+        <div class="sub" id="whoDate"></div>
       </div>
-      <button class="btn btn-sm" id="logoutBtn" style="margin-left:auto;">Sign out</button>
-    </div>
-  </div>
-
-  <div class="worker-body">
-    <div class="panel">
-      <p class="panel-title">Today's temp workforce</p>
-      <input type="date" id="dateFilter" style="margin-bottom:12px;" />
-      <div id="workforceList"><p class="empty">Loading…</p></div>
+      <input type="date" id="dateFilter" />
     </div>
 
-    <div class="panel" id="assignmentDetailPanel" style="display:none;">
-      <p class="panel-title" id="assignmentDetailTitle"></p>
-      <div id="assignmentDetailSummary"></div>
-      <div style="margin-top:12px;">
-        <button class="btn btn-sm" id="checkOnBtn">ARE YOU COMING? (check on worker)</button>
-        <button class="btn btn-sm" id="messageBtn">Send a message</button>
+    <div class="kpi-grid" id="workforceKpis"></div>
+
+    <div class="client-split">
+      <div class="panel">
+        <p class="panel-title">On site today</p>
+        <div id="workforceList"><p class="empty">Loading…</p></div>
       </div>
-      <div id="messageForm" style="display:none;margin-top:10px;">
-        <div class="field"><label>Message to worker and agency</label><textarea id="messageBody" rows="3"></textarea></div>
-        <button class="btn btn-primary btn-sm" id="sendMessageBtn">Send</button>
+
+      <div class="panel" id="assignmentDetailPanel">
+        <p class="panel-title" id="assignmentDetailTitle">Select someone to view details</p>
+        <div id="assignmentDetailEmpty" class="empty">Click "View" on anyone in the list to see their status, send a message, or check on their arrival.</div>
+        <div id="assignmentDetailBody" style="display:none;">
+          <div id="assignmentDetailSummary"></div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm" id="checkOnBtn">ARE YOU COMING? (check on worker)</button>
+            <button class="btn btn-sm" id="messageBtn">Send a message</button>
+          </div>
+          <div id="messageForm" style="display:none;margin-top:10px;">
+            <div class="field"><label>Message to worker and agency</label><textarea id="messageBody" rows="3"></textarea></div>
+            <button class="btn btn-primary btn-sm" id="sendMessageBtn">Send</button>
+          </div>
+          <p class="error-msg" id="detailErr"></p>
+          <p class="section-label" style="margin-top:16px;">Communication Record</p>
+          <div id="assignmentDetailEvents"></div>
+        </div>
       </div>
-      <p class="error-msg" id="detailErr"></p>
-      <p class="section-label" style="margin-top:16px;">Communication Record</p>
-      <div id="assignmentDetailEvents"></div>
     </div>
   </div>
 </div>
@@ -55,6 +66,7 @@
 <script>
 let myOrgId = null;
 let currentAssignmentId = null;
+let workforceCache = [];
 
 function fmtAssignTime(t) {
   if (!t) return '';
@@ -67,7 +79,8 @@ async function loadMe() {
   const res = await fetch('/api/client/me');
   if (!res.ok) { window.location.href = '/client/login.html'; return; }
   const me = await res.json();
-  document.getElementById('whoName').textContent = `${me.name} — ${me.clientCompanyName}`;
+  document.getElementById('whoName').textContent = me.name;
+  document.getElementById('whoCompany').textContent = me.clientCompanyName;
   document.getElementById('whoDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
@@ -88,6 +101,21 @@ const STATUS_PILL_CLASS = {
   absent: 'red', possible_no_show: 'red', no_show: 'red', cancelled: 'gray',
   shift_complete: 'green', leaving_early_requested: 'amber', scheduled: 'gray', confirmed: 'gray',
 };
+const ATTENTION_STATUSES = new Set(['running_late', 'possible_no_show', 'no_show', 'absent', 'leaving_early_requested']);
+const ON_SITE_STATUSES = new Set(['arrived', 'in_progress']);
+
+function renderKpis() {
+  const total = workforceCache.length;
+  const onSite = workforceCache.filter((a) => ON_SITE_STATUSES.has(a.status)).length;
+  const attention = workforceCache.filter((a) => ATTENTION_STATUSES.has(a.status)).length;
+  const scheduled = workforceCache.filter((a) => a.status === 'scheduled' || a.status === 'confirmed').length;
+  document.getElementById('workforceKpis').innerHTML = `
+    <div class="kpi-card"><p class="kpi-label">Scheduled today</p><p class="kpi-value">${total}</p></div>
+    <div class="kpi-card"><p class="kpi-label">On site</p><p class="kpi-value good">${onSite}</p></div>
+    <div class="kpi-card"><p class="kpi-label">Needs attention</p><p class="kpi-value ${attention ? 'bad' : ''}">${attention}</p></div>
+    <div class="kpi-card"><p class="kpi-label">Not yet arrived</p><p class="kpi-value">${scheduled}</p></div>
+  `;
+}
 
 async function loadWorkforce() {
   const date = document.getElementById('dateFilter').value;
@@ -95,6 +123,8 @@ async function loadWorkforce() {
   const res = await fetch('/api/client/today' + qs);
   const data = await res.json();
   if (!date) document.getElementById('dateFilter').value = data.date;
+  workforceCache = data.assignments;
+  renderKpis();
   const el = document.getElementById('workforceList');
   el.innerHTML = data.assignments.length ? data.assignments.map((a) => `
     <div class="discrepancy-row">
@@ -104,7 +134,7 @@ async function loadWorkforce() {
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="pill ${STATUS_PILL_CLASS[a.status] || 'gray'}">${STATUS_LABEL[a.status] || a.status}</span>
-        <button class="btn btn-sm" onclick="openAssignmentDetail(${a.id})">View</button>
+        <button class="btn btn-sm ${currentAssignmentId === a.id ? 'btn-primary' : ''}" onclick="openAssignmentDetail(${a.id})">View</button>
       </div>
     </div>`).join('') : '<p class="empty">No temp workers scheduled for this date.</p>';
 }
@@ -115,7 +145,8 @@ async function openAssignmentDetail(id) {
   const res = await fetch('/api/client/assignments/' + id);
   const data = await res.json();
   const a = data.assignment;
-  document.getElementById('assignmentDetailPanel').style.display = 'block';
+  document.getElementById('assignmentDetailEmpty').style.display = 'none';
+  document.getElementById('assignmentDetailBody').style.display = 'block';
   document.getElementById('assignmentDetailTitle').textContent = `${a.worker_name}${a.department ? ' — ' + a.department : ''}`;
   document.getElementById('assignmentDetailSummary').innerHTML = `
     <div class="why">${a.client_location_name ? 'Location: ' + a.client_location_name + '<br/>' : ''}Shift: ${fmtAssignTime(a.start_time)} – ${fmtAssignTime(a.end_time)}<br/>
@@ -123,7 +154,19 @@ async function openAssignmentDetail(id) {
   document.getElementById('messageForm').style.display = 'none';
   document.getElementById('detailErr').textContent = '';
   renderClientEvents(data.events);
-  document.getElementById('assignmentDetailPanel').scrollIntoView({ behavior: 'smooth' });
+  // Re-render the list so the selected row's "View" button highlights.
+  const el = document.getElementById('workforceList');
+  el.innerHTML = workforceCache.length ? workforceCache.map((wa) => `
+    <div class="discrepancy-row">
+      <div>
+        <div class="who">${wa.worker_name}${wa.department ? ' — ' + wa.department : ''}</div>
+        <div class="why">${wa.client_location_name ? wa.client_location_name + ' &middot; ' : ''}${fmtAssignTime(wa.start_time)} – ${fmtAssignTime(wa.end_time)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="pill ${STATUS_PILL_CLASS[wa.status] || 'gray'}">${STATUS_LABEL[wa.status] || wa.status}</span>
+        <button class="btn btn-sm ${currentAssignmentId === wa.id ? 'btn-primary' : ''}" onclick="openAssignmentDetail(${wa.id})">View</button>
+      </div>
+    </div>`).join('') : '<p class="empty">No temp workers scheduled for this date.</p>';
 }
 
 function renderClientEvents(events) {
