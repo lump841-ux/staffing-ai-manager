@@ -362,6 +362,24 @@ async function main() {
     res = await request(port, 'GET', `/api/client/assignments/${assignmentId}`, null, getCookie(await request(port, 'POST', '/api/client/login', { email: 'testcontact@testclientco.demo', password: 'contact123' })));
     ok(res.status === 404, "A different client company's contact cannot read Meridian's assignment — cross-client isolation holds");
 
+    console.log('\n── Cross-agency invites ──');
+    res = await request(port, 'GET', '/api/client/linked-orgs', null, clientCookie);
+    ok(res.status === 200 && res.json.linked.length === 0, 'Client with no cross-agency connections sees an empty linked-orgs list');
+
+    res = await request(port, 'POST', '/api/client/invite-agency', { agencyNameHint: "Priya's other vendor" }, clientCookie);
+    ok(res.status === 200 && !!res.json.token && res.json.inviteUrl.includes('/signup.html?invite='), 'Client can generate an agency invite link');
+    const inviteToken = res.json.token;
+
+    res = await request(port, 'GET', '/api/client/invites', null, clientCookie);
+    ok(res.status === 200 && res.json.some((i) => i.token === inviteToken && i.status === 'pending'), 'Client sees the invite they just created, still pending');
+
+    res = await request(port, 'POST', '/api/client/switch-org', { organizationId: 99999, clientCompanyId: 99999 }, clientCookie);
+    ok(res.status === 403, 'Client cannot switch into an agency/client-company pairing they have no connection to');
+
+    res = await request(port, 'GET', '/api/client/me', null, clientCookie);
+    res = await request(port, 'POST', '/api/client/switch-org', { organizationId: res.json.organizationId, clientCompanyId: res.json.clientCompanyId }, clientCookie);
+    ok(res.status === 200 && res.json.contact.clientCompanyName === 'Meridian Distribution Center', 'Client can always switch back into their own home agency/client-company pairing');
+
     console.log('\n── Temp Chat (paid upgrade) gating ──');
     // Demo/seed orgs default temp_chat_enabled = TRUE (see schema.sql), so
     // messaging should work out of the box for Summit Staffing.

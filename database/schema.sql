@@ -478,6 +478,48 @@ CREATE TABLE IF NOT EXISTS event_acknowledgments (
 -- In-app notification inbox, shared shape for all three audiences
 -- (worker / client_contact / agency_user), differentiated by
 -- recipient_type the same way event_recipients is.
+-- ════════════════════════════════════════════════════════════════════
+-- CROSS-AGENCY CONNECTIONS
+-- Lets a client company that's already on Twanova invite a staffing
+-- agency that isn't yet, and end up able to see that agency's temps too
+-- — without ever duplicating the client contact's login. The
+-- client_contacts row stays exactly where it started ("home" agency) —
+-- a link row just grants that same login visibility into a client
+-- company record living under a DIFFERENT organization. Billing default
+-- (per product decision): the agency being invited pays its own
+-- subscription like any self-signup — the inviting client is never
+-- billed for a connection it didn't originate the paid account for.
+-- ════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS client_contact_org_links (
+  id SERIAL PRIMARY KEY,
+  client_contact_id INTEGER NOT NULL REFERENCES client_contacts(id),
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  client_company_id INTEGER NOT NULL REFERENCES client_companies(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(client_contact_id, organization_id, client_company_id)
+);
+
+-- A client-initiated invite for a staffing agency that isn't on Twanova
+-- yet. Created from the client portal, consumed during that agency's
+-- self-signup (routes/signup.js GET /confirm). Tokens are single-use —
+-- claiming flips status to 'claimed' so the link can't be replayed.
+CREATE TABLE IF NOT EXISTS agency_invites (
+  id SERIAL PRIMARY KEY,
+  token TEXT NOT NULL UNIQUE,
+  inviting_organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  inviting_client_company_id INTEGER NOT NULL REFERENCES client_companies(id),
+  inviting_client_contact_id INTEGER NOT NULL REFERENCES client_contacts(id),
+  agency_name_hint TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','claimed','expired')),
+  claimed_by_organization_id INTEGER REFERENCES organizations(id),
+  claimed_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS connected_via_invite_id INTEGER REFERENCES agency_invites(id);
+ALTER TABLE pending_signups ADD COLUMN IF NOT EXISTS invite_token TEXT;
+
 CREATE TABLE IF NOT EXISTS notifications (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id),

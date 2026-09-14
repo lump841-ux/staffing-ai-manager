@@ -18,6 +18,10 @@
     </div>
     <div class="nav-item active" data-view="workforce">Today's Workforce</div>
     <div class="nav-footer">
+      <div id="orgSwitcherWrap" class="field" style="display:none;margin-bottom:10px;">
+        <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;">Viewing agency</label>
+        <select id="orgSwitcher"></select>
+      </div>
       <div id="whoName" style="font-weight:600;"></div>
       <div id="whoCompany" style="color:var(--ink-3);"></div>
       <button class="btn btn-sm" id="logoutBtn">Sign out</button>
@@ -60,6 +64,18 @@
         </div>
       </div>
     </div>
+
+    <div class="panel">
+      <p class="panel-title">Invite your staffing agency</p>
+      <p class="why" style="margin-bottom:12px;">If a staffing agency you work with isn't on Twanova yet, send them this link. They sign up and pay for their own account — you're never billed for a connection you didn't start. Once they're set up, you'll see their temps here too, from this same login.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-sm" id="genInviteBtn">Generate invite link</button>
+        <input type="text" id="inviteLinkBox" readonly style="flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-md);font-size:13px;color:var(--ink-2);display:none;" />
+        <button class="btn btn-sm" id="copyInviteBtn" style="display:none;">Copy</button>
+      </div>
+      <p class="error-msg" id="inviteErr"></p>
+      <div id="invitesList" style="margin-top:14px;"></div>
+    </div>
   </div>
 </div>
 
@@ -82,7 +98,72 @@ async function loadMe() {
   document.getElementById('whoName').textContent = me.name;
   document.getElementById('whoCompany').textContent = me.clientCompanyName;
   document.getElementById('whoDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  loadLinkedOrgs();
 }
+
+async function loadLinkedOrgs() {
+  const res = await fetch('/api/client/linked-orgs');
+  if (!res.ok) return;
+  const data = await res.json();
+  const wrap = document.getElementById('orgSwitcherWrap');
+  const sel = document.getElementById('orgSwitcher');
+  if (!data.linked.length) { wrap.style.display = 'none'; return; }
+  const options = [
+    { organizationId: data.home.organizationId, clientCompanyId: data.home.clientCompanyId, label: document.getElementById('whoCompany').textContent + ' (home)' },
+    ...data.linked.map((l) => ({ organizationId: l.organizationId, clientCompanyId: l.clientCompanyId, label: `${l.clientCompanyName} via ${l.organizationName}` })),
+  ];
+  sel.innerHTML = options.map((o) => `<option value="${o.organizationId}:${o.clientCompanyId}" ${o.organizationId === data.home.organizationId ? 'selected' : ''}>${o.label}</option>`).join('');
+  wrap.style.display = 'block';
+}
+
+document.getElementById('orgSwitcher').addEventListener('change', async (e) => {
+  const [organizationId, clientCompanyId] = e.target.value.split(':').map(Number);
+  const res = await fetch('/api/client/switch-org', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ organizationId, clientCompanyId }),
+  });
+  if (!res.ok) return;
+  const data = await res.json();
+  document.getElementById('whoCompany').textContent = data.contact.clientCompanyName;
+  currentAssignmentId = null;
+  closeAssignmentDetail();
+  loadWorkforce();
+});
+
+document.getElementById('genInviteBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('inviteErr');
+  errEl.textContent = '';
+  const res = await fetch('/api/client/invite-agency', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Could not create invite'; return; }
+  const box = document.getElementById('inviteLinkBox');
+  box.value = data.inviteUrl;
+  box.style.display = 'inline-block';
+  document.getElementById('copyInviteBtn').style.display = 'inline-flex';
+  loadInvites();
+});
+
+document.getElementById('copyInviteBtn').addEventListener('click', () => {
+  const box = document.getElementById('inviteLinkBox');
+  box.select();
+  navigator.clipboard && navigator.clipboard.writeText(box.value).catch(() => {});
+});
+
+async function loadInvites() {
+  const res = await fetch('/api/client/invites');
+  if (!res.ok) return;
+  const invites = await res.json();
+  const el = document.getElementById('invitesList');
+  if (!invites.length) { el.innerHTML = ''; return; }
+  el.innerHTML = invites.map((inv) => `
+    <div class="discrepancy-row">
+      <div>
+        <div class="who">${inv.agency_name_hint || 'Invited agency'}</div>
+        <div class="why">Sent ${new Date(inv.created_at).toLocaleDateString()}${inv.claimed_by_organization_name ? ' &middot; connected to ' + inv.claimed_by_organization_name : ''}</div>
+      </div>
+      <span class="pill ${inv.status === 'claimed' ? 'green' : inv.status === 'expired' ? 'gray' : 'amber'}">${inv.status}</span>
+    </div>`).join('');
+}
+loadInvites();
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   await fetch('/api/client/logout', { method: 'POST' });

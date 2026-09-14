@@ -5,6 +5,7 @@
 // company's workforce even within the same agency.
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const db = require('../services/db');
 const comms = require('../services/assignment-comms');
 const { requireClientContact } = require('../services/client-auth');
@@ -49,6 +50,111 @@ router.get('/me', (req, res) => {
 });
 
 router.use(requireClientContact);
+
+// ---- Cross-agency connections ----
+// A client already on Twanova can invite a staffing agency that isn't yet.
+// The agency signs up (and pays for its own subscription — see
+// routes/signup.js) via a link carrying this token; on successful signup
+// they get their own client_companies record for this client, and this
+// same login is granted visibility into it (see client_contact_org_links)
+// without ever creating a second account or password.
+router.post('/invite-agency', async (req, res) => {
+  const { organizationId, clientCompanyId, id } = req.session.clientContact;
+  const { agencyNameHint } = req.body || {};
+  const token = crypto.randomBytes(16).toString('hex');
+  await db.query(
+    `INSERT INTO agency_invites (token, inviting_organization_id, inviting_client_company_id, inviting_client_contact_id, agency_name_hint)
+     VALUES ($1,$2,$3,$4,$5)`,
+    [token, organizationId, clientCompanyId, id, (agencyNameHint || '').trim() || null]
+  );
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  const inviteUrl = `${proto}://${req.get('host')}/signup.html?invite=${token}`;
+  res.json({ ok: true, token, inviteUrl });
+});
+
+router.get('/invites', async (req, res) => {
+  const { id } = req.session.clientContact;
+  const { rows } = await db.query(
+    `SELECT ai.*, o.name AS claimed_by_organization_name
+     FROM agency_invites ai
+     LEFT JOIN organizations o ON o.id = ai.claimed_by_organization_id
+     WHERE ai.inviting_client_contact_id = $1
+     ORDER BY ai.created_at DESC`,
+    [id]
+  );
+  res.json(rows);
+});
+
+// Other agencies this same login has been connected to (via an invite
+// someone claimed), beyond the "home" agency they originally signed in
+// under. The client dashboard uses this to offer a "switch agency" view.
+router.get('/linked-orgs', async (req, res) => {
+  const { id, organizationId, clientCompanyId } = req.session.clientContact;
+  const { rows } = await db.query(
+    `SELECT l.organization_id, o.name AS organization_name, l.client_company_id, cc.name AS client_company_name
+     FROM client_contact_org_links l
+     JOIN organizations o ON o.id = l.organization_id
+     JOIN client_companies cc ON cc.id = l.client_company_id
+     WHERE l.client_contact_id = $1
+     ORDER BY o.name ASC`,
+    [id]
+  );
+  res.json({
+    home: { organizationId, clientCompanyId },
+    linked: rows.map((r) => ({
+      organizationId: r.organization_id,
+      organizationName: r.organization_name,
+      clientCompanyId: r.client_company_id,
+      clientCompanyName: r.client_company_name,
+    })),
+  });
+});
+
+// Re-scope this same login's session to a different agency/client-company
+// pairing it's been connected to (its home org, or one granted via an
+// accepted invite). Never trusts the client's word — always re-verified
+// against client_contact_org_links (or the contact's own home row) here.
+router.post('/switch-org', async (req, res) => {
+  const contact = req.session.clientContact;
+  const { organizationId, clientCompanyId } = req.body || {};
+  if (!organizationId || !clientCompanyId) {
+    return res.status(400).json({ error: 'organizationId and clientCompanyId are required' });
+  }
+
+  const { rows: homeRows } = await db.query(
+    `SELECT cc.*, co.name AS client_company_name FROM client_contacts cc
+     JOIN client_companies co ON co.id = cc.client_company_id
+     WHERE cc.id = $1 AND cc.organization_id = $2 AND cc.client_company_id = $3`,
+    [contact.id, organizationId, clientCompanyId]
+  );
+  if (homeRows.length) {
+    req.session.clientContact = {
+      ...contact,
+      organizationId: homeRows[0].organization_id,
+      clientCompanyId: homeRows[0].client_company_id,
+      clientCompanyName: homeRows[0].client_company_name,
+    };
+    return res.json({ ok: true, contact: req.session.clientContact });
+  }
+
+  const { rows: linkRows } = await db.query(
+    `SELECT l.*, o.name AS organization_name, cc.name AS client_company_name
+     FROM client_contact_org_links l
+     JOIN organizations o ON o.id = l.organization_id
+     JOIN client_companies cc ON cc.id = l.client_company_id
+     WHERE l.client_contact_id = $1 AND l.organization_id = $2 AND l.client_company_id = $3`,
+    [contact.id, organizationId, clientCompanyId]
+  );
+  if (!linkRows.length) return res.status(403).json({ error: 'You are not connected to that agency.' });
+
+  req.session.clientContact = {
+    ...contact,
+    organizationId: linkRows[0].organization_id,
+    clientCompanyId: linkRows[0].client_company_id,
+    clientCompanyName: linkRows[0].client_company_name,
+  };
+  res.json({ ok: true, contact: req.session.clientContact });
+});
 
 // ---- Today's temp workforce (spec §23) ----
 router.get('/today', async (req, res) => {

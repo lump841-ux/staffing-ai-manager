@@ -58,6 +58,7 @@ router.post('/agency', async (req, res) => {
     plan: planKey,
     password,
     tosAccepted,
+    inviteToken,
   } = req.body || {};
 
   if (!companyName || !contactName || !isEmail(contactEmail) || !password) {
@@ -82,14 +83,31 @@ router.post('/agency', async (req, res) => {
     return res.status(409).json({ error: 'An account with that email already exists. Try signing in instead.' });
   }
 
+  // If this signup arrived via a client's "invite your staffing agency"
+  // link, confirm the token is real and unclaimed before proceeding —
+  // it gets re-checked (and actually consumed) again in GET /confirm,
+  // this is just an early, friendly failure.
+  let invite = null;
+  if (inviteToken) {
+    const { rows: inviteRows } = await db.query(
+      `SELECT * FROM agency_invites WHERE token = $1 AND status = 'pending'`,
+      [inviteToken]
+    );
+    if (!inviteRows.length) {
+      return res.status(400).json({ error: 'This invite link is no longer valid. Ask the client to send a new one, or sign up without it.' });
+    }
+    invite = inviteRows[0];
+  }
+
   const hash = await bcrypt.hash(password, 10);
   const { rows: pendingRows } = await db.query(
     `INSERT INTO pending_signups
-       (company_name, office_name, office_address, contact_name, contact_email, contact_phone, password_hash, plan)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+       (company_name, office_name, office_address, contact_name, contact_email, contact_phone, password_hash, plan, invite_token)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
     [
       companyName.trim(), (officeName || 'Main Office').trim(), officeAddress || null,
       contactName.trim(), contactEmail.toLowerCase().trim(), contactPhone || null, hash, plan.key,
+      invite ? invite.token : null,
     ]
   );
   const pendingId = pendingRows[0].id;
@@ -256,6 +274,51 @@ router.get('/confirm', async (req, res) => {
     `UPDATE pending_signups SET organization_id = $1, consumed_at = NOW() WHERE id = $2`,
     [orgId, pending.id]
   );
+
+  // Claim the invite, if this signup arrived via a client's "invite your
+  // staffing agency" link. Re-checks status = 'pending' here (not just in
+  // POST /agency) so a token can never be claimed twice even if two
+  // checkout sessions race. Creates a client_companies row for the new
+  // agency (their own operational record for this client — locations,
+  // bill rates, assignments all live under their own org, same as any
+  // other client) and grants the ORIGINAL inviting contact's existing
+  // login visibility into it via client_contact_org_links — no duplicate
+  // account, no second password.
+  if (pending.invite_token) {
+    const { rows: inviteRows } = await db.query(
+      `SELECT * FROM agency_invites WHERE token = $1 AND status = 'pending'`,
+      [pending.invite_token]
+    );
+    if (inviteRows.length) {
+      const invite = inviteRows[0];
+      const { rows: clientCoRows } = await db.query(
+        `SELECT name FROM client_companies WHERE id = $1`,
+        [invite.inviting_client_company_id]
+      );
+      const clientName = clientCoRows.length ? clientCoRows[0].name : 'Connected client';
+
+      const { rows: newClientCoRows } = await db.query(
+        `INSERT INTO client_companies (organization_id, name, notes) VALUES ($1,$2,$3) RETURNING id`,
+        [orgId, clientName, 'Connected via client-initiated Twanova invite.']
+      );
+      const newClientCompanyId = newClientCoRows[0].id;
+
+      await db.query(
+        `INSERT INTO client_contact_org_links (client_contact_id, organization_id, client_company_id)
+         VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+        [invite.inviting_client_contact_id, orgId, newClientCompanyId]
+      );
+
+      await db.query(
+        `UPDATE agency_invites SET status = 'claimed', claimed_by_organization_id = $1, claimed_at = NOW() WHERE id = $2`,
+        [orgId, invite.id]
+      );
+      await db.query(
+        `UPDATE organizations SET connected_via_invite_id = $1 WHERE id = $2`,
+        [invite.id, orgId]
+      );
+    }
+  }
 
   req.session.user = toSessionUser(owner);
 
