@@ -1,4 +1,4 @@
-// Only A Job's own Super Admin area — for the platform operator, never for
+// Twanova's own Super Admin area — for the platform operator, never for
 // a staffing agency. Auth lives in platform_admins, a table completely
 // separate from the agency users table; nothing here is reachable by an
 // agency owner/manager/worker session.
@@ -35,14 +35,13 @@ router.use(requirePlatformAdmin);
 
 router.get('/overview', async (req, res) => {
   const { rows: agencies } = await db.query(
-    `SELECT id, name, plan, plan_price_cents, billing_status, is_founding_partner,
+    `SELECT id, name, plan, plan_price_cents, billing_status,
             setup_fee_cents, setup_fee_waived, setup_fee_paid, signup_source, created_at
      FROM organizations ORDER BY created_at DESC`
   );
 
   const totalAgencies = agencies.length;
   const activeSubs = agencies.filter((a) => a.billing_status === 'active' || a.billing_status === 'trialing').length;
-  const foundingPartners = agencies.filter((a) => a.is_founding_partner).length;
   const canceled = agencies.filter((a) => a.billing_status === 'canceled').length;
   const pastDue = agencies.filter((a) => a.billing_status === 'past_due').length;
   const suspended = agencies.filter((a) => a.billing_status === 'suspended').length;
@@ -63,9 +62,6 @@ router.get('/overview', async (req, res) => {
   res.json({
     totalAgencies,
     activeSubscriptions: activeSubs,
-    foundingPartners,
-    foundingPartnerLimit: billing.FOUNDING_PARTNER_LIMIT,
-    foundingSlotsRemaining: Math.max(0, billing.FOUNDING_PARTNER_LIMIT - foundingPartners),
     mrrDisplay: billing.formatCents(mrrCents),
     newSignups30d,
     canceled,
@@ -77,15 +73,31 @@ router.get('/overview', async (req, res) => {
 });
 
 router.get('/agencies', async (req, res) => {
-  const { rows } = await db.query(
-    `SELECT o.id, o.name, o.plan, o.plan_price_cents, o.billing_status, o.is_founding_partner,
-            o.setup_fee_cents, o.setup_fee_waived, o.setup_fee_paid, o.signup_source, o.next_billing_date,
-            o.created_at,
-            (SELECT COUNT(*)::int FROM branches b WHERE b.organization_id = o.id) AS office_count,
-            (SELECT COUNT(*)::int FROM users u WHERE u.organization_id = o.id) AS user_count
-     FROM organizations o
-     ORDER BY o.created_at DESC`
+  // Note: counts are fetched separately and merged in JS rather than as
+  // correlated subqueries in the SELECT list — pg-mem (the in-memory dev DB)
+  // doesn't reliably support correlated subqueries referencing the outer
+  // table alias, which was crashing this route. Two extra round trips is a
+  // fine tradeoff for a Super Admin listing that isn't hit on a hot path.
+  const { rows: orgs } = await db.query(
+    `SELECT id, name, plan, plan_price_cents, billing_status,
+            setup_fee_cents, setup_fee_waived, setup_fee_paid, signup_source, next_billing_date,
+            created_at
+     FROM organizations
+     ORDER BY created_at DESC`
   );
+  const { rows: officeCounts } = await db.query(
+    `SELECT organization_id, COUNT(*)::int AS n FROM branches GROUP BY organization_id`
+  );
+  const { rows: userCounts } = await db.query(
+    `SELECT organization_id, COUNT(*)::int AS n FROM users GROUP BY organization_id`
+  );
+  const officeMap = new Map(officeCounts.map((r) => [r.organization_id, r.n]));
+  const userMap = new Map(userCounts.map((r) => [r.organization_id, r.n]));
+  const rows = orgs.map((o) => ({
+    ...o,
+    office_count: officeMap.get(o.id) || 0,
+    user_count: userMap.get(o.id) || 0,
+  }));
   res.json(rows);
 });
 
@@ -143,25 +155,6 @@ router.post('/agencies/:id/promo-price', async (req, res) => {
   res.json(rows[0]);
 });
 
-router.post('/agencies/:id/founding', async (req, res) => {
-  const id = Number(req.params.id);
-  const { value } = req.body || {};
-  if (value) {
-    const remaining = await billing.foundingSlotsRemaining();
-    const { rows: current } = await db.query(`SELECT is_founding_partner FROM organizations WHERE id = $1`, [id]);
-    if (!current.length) return res.status(404).json({ error: 'Agency not found' });
-    if (!current[0].is_founding_partner && remaining <= 0) {
-      return res.status(409).json({ error: `All ${billing.FOUNDING_PARTNER_LIMIT} Founding Partner spots are taken.` });
-    }
-  }
-  const { rows } = await db.query(
-    `UPDATE organizations SET is_founding_partner = $1 WHERE id = $2 RETURNING *`,
-    [!!value, id]
-  );
-  if (!rows.length) return res.status(404).json({ error: 'Agency not found' });
-  res.json(rows[0]);
-});
-
 router.post('/agencies/:id/status', async (req, res) => {
   const id = Number(req.params.id);
   const { status } = req.body || {};
@@ -183,6 +176,21 @@ router.post('/agencies/:id/plan', async (req, res) => {
   const { rows } = await db.query(
     `UPDATE organizations SET plan = $1, plan_price_cents = $2 WHERE id = $3 RETURNING *`,
     [plan.key, plan.priceCents || 0, id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Agency not found' });
+  res.json(rows[0]);
+});
+
+// Temp Chat is the paid two-way messaging upgrade (temp <-> recruiter/lead
+// <-> client). No real billing is wired up for it yet — the Super Admin
+// flips this manually per agency until pricing is finalized.
+router.post('/agencies/:id/temp-chat', async (req, res) => {
+  const id = Number(req.params.id);
+  const { enabled } = req.body || {};
+  if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be true or false' });
+  const { rows } = await db.query(
+    `UPDATE organizations SET temp_chat_enabled = $1 WHERE id = $2 RETURNING *`,
+    [enabled, id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Agency not found' });
   res.json(rows[0]);

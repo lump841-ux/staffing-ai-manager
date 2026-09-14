@@ -1,7 +1,7 @@
 // Public (unauthenticated) routes that let a brand-new staffing agency
-// discover Only A Job, pick a plan, pay through real Stripe Checkout, and
+// discover Twanova, pick a plan, pay through real Stripe Checkout, and
 // land inside their own fresh, fully isolated agency account — without any
-// Only A Job staff manually provisioning anything.
+// Twanova staff manually provisioning anything.
 //
 // Payment note: this server never collects or stores a raw card number.
 // The signup wizard hands the browser off to Stripe-hosted Checkout, which
@@ -34,15 +34,12 @@ function toSessionUser(row) {
 }
 
 router.get('/plans', async (req, res) => {
-  const remaining = await billing.foundingSlotsRemaining();
   res.json({
     plans: billing.listCheckoutPlans().map((p) => ({
       ...p,
       priceDisplay: billing.formatCents(p.priceCents),
       setupFeeDisplay: billing.formatCents(p.setupFeeCents),
-      slotsRemaining: p.key === 'founding' ? remaining : null,
     })),
-    foundingSlotsRemaining: remaining,
   });
 });
 
@@ -74,22 +71,15 @@ router.post('/agency', async (req, res) => {
   }
   const plan = billing.getPlan(planKey);
   if (!plan || plan.contactSalesOnly) {
-    return res.status(400).json({ error: 'Please choose Founding, Growth, or Professional to sign up directly. Enterprise is Contact Sales.' });
+    return res.status(400).json({ error: 'Please choose Starter, Growth, or Professional to sign up directly. Enterprise is Contact Sales.' });
   }
   if (!isConfigured()) {
-    return res.status(503).json({ error: 'Payment processing is not configured on this server yet. Please contact Only A Job.' });
+    return res.status(503).json({ error: 'Payment processing is not configured on this server yet. Please contact Twanova.' });
   }
 
   const { rows: existing } = await db.query(`SELECT id FROM users WHERE email = $1`, [contactEmail.toLowerCase().trim()]);
   if (existing.length) {
     return res.status(409).json({ error: 'An account with that email already exists. Try signing in instead.' });
-  }
-
-  if (plan.key === 'founding') {
-    const remaining = await billing.foundingSlotsRemaining();
-    if (remaining <= 0) {
-      return res.status(409).json({ error: 'All Founding Agency spots are taken. Please choose Growth or Professional instead.' });
-    }
   }
 
   const hash = await bcrypt.hash(password, 10);
@@ -111,7 +101,7 @@ router.post('/agency', async (req, res) => {
     {
       price_data: {
         currency: 'usd',
-        product_data: { name: `${plan.name} — Only A Job monthly subscription` },
+        product_data: { name: `${plan.name} — Twanova monthly subscription` },
         recurring: { interval: 'month' },
         unit_amount: plan.priceCents,
       },
@@ -179,7 +169,7 @@ router.get('/confirm', async (req, res) => {
   const pendingId = Number(session.metadata && session.metadata.pendingSignupId);
   const { rows: pendingRows } = await db.query(`SELECT * FROM pending_signups WHERE id = $1`, [pendingId]);
   if (!pendingRows.length) {
-    return res.status(404).json({ error: 'We could not find this signup. Please contact Only A Job.' });
+    return res.status(404).json({ error: 'We could not find this signup. Please contact Twanova.' });
   }
   const pending = pendingRows[0];
 
@@ -198,11 +188,6 @@ router.get('/confirm', async (req, res) => {
   }
 
   const plan = billing.getPlan(pending.plan);
-  let isFounding = false;
-  if (plan.key === 'founding') {
-    const remaining = await billing.foundingSlotsRemaining();
-    isFounding = remaining > 0;
-  }
 
   const subscription = session.subscription;
   const today = new Date().toISOString().slice(0, 10);
@@ -211,15 +196,20 @@ router.get('/confirm', async (req, res) => {
     : billing.nextBillingDateFrom(today);
 
   const { rows: orgRows } = await db.query(
+    // temp_chat_enabled is explicitly FALSE here — Temp Chat (the two-way
+    // messaging upgrade) is off by default for brand-new agencies until they
+    // pay for it; only a platform Super Admin can turn it on (see
+    // routes/platform-admin.js). The schema-level default stays TRUE so
+    // existing/demo orgs created before this feature keep working.
     `INSERT INTO organizations
        (name, plan, plan_price_cents, billing_status, is_founding_partner,
         setup_fee_cents, setup_fee_waived, setup_fee_paid, next_billing_date,
         payment_method_label, billing_contact_name, billing_email, signup_source,
-        stripe_customer_id, stripe_subscription_id)
-     VALUES ($1,$2,$3,'active',$4,$5,FALSE,TRUE,$6,$7,$8,$9,'self_signup',$10,$11)
+        stripe_customer_id, stripe_subscription_id, temp_chat_enabled)
+     VALUES ($1,$2,$3,'active',FALSE,$4,FALSE,TRUE,$5,$6,$7,$8,'self_signup',$9,$10,FALSE)
      RETURNING id`,
     [
-      pending.company_name, plan.key, plan.priceCents, isFounding,
+      pending.company_name, plan.key, plan.priceCents,
       plan.setupFeeCents, nextBilling, 'Card on file via Stripe',
       pending.contact_name, pending.contact_email,
       session.customer || null, subscription ? subscription.id : null,
@@ -272,7 +262,7 @@ router.get('/confirm', async (req, res) => {
   res.json({
     ok: true,
     user: req.session.user,
-    organization: { id: orgId, name: pending.company_name, plan: plan.key, isFoundingPartner: isFounding },
+    organization: { id: orgId, name: pending.company_name, plan: plan.key },
     redirectTo: '/dashboard/manager',
   });
 });

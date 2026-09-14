@@ -2,24 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Manager Command Center — Only A Job | Staffing Agencies</title>
+<title>Lead Command Center — Twanova | Staffing Solutions</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 </head>
 <body>
 <div class="app-shell">
   <div class="app-nav">
     <div class="brand-lockup">
-      <img src="/manager/brand-logo.png" alt="Only A Job" />
-      <div class="brand-text">
-        <span class="brand-name">Only A Job</span>
-        <span class="brand-sub">Staffing Agencies</span>
-      </div>
+      <img src="/manager/brand-logo-compact.png" alt="Twanova" style="height:28px;width:auto;" />
     </div>
     <div class="nav-item active" data-view="today">Today</div>
+    <div class="nav-item" data-view="attention">Needs Attention</div>
+    <div class="nav-item" data-view="assignments">Assignments</div>
+    <div class="nav-item" data-view="clients">Client Companies</div>
+    <div class="nav-item" data-view="fieldworkers">Temps</div>
     <div class="nav-item" data-view="week">This Week</div>
-    <div class="nav-item" data-view="workers">Workers</div>
+    <div class="nav-item" data-view="workers">Recruiters</div>
     <div class="nav-item" data-view="categories">Categories</div>
     <div class="nav-item" data-view="time">Time Entry</div>
     <div class="nav-item" data-view="review">Needs Review</div>
@@ -55,6 +59,125 @@
       </div>
     </div>
 
+    <div id="view-attention" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Needs Attention</h1><div class="sub">Everything active right now — sorted by what matters most</div></div></div>
+      <div class="kpi-grid" id="attentionKpis"></div>
+      <div class="panel" id="attentionListPanel">
+        <p class="panel-title">Open items</p>
+        <div id="attentionList"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+
+    <div id="view-assignments" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Assignments</h1><div class="sub">Every worker's placement — create, track, and respond</div></div>
+        <button class="btn btn-sm btn-primary" id="newAssignmentBtn">New assignment</button>
+      </div>
+      <div class="panel" id="newAssignmentPanel" style="display:none;">
+        <p class="panel-title">Create assignment</p>
+        <div class="field"><label>Field worker</label><select id="asgWorker"></select></div>
+        <div class="field"><label>Client company</label><select id="asgClient"></select></div>
+        <div class="field"><label>Client location (optional)</label><select id="asgLocation"><option value="">—</option></select></div>
+        <div class="field"><label>Department (optional)</label><input id="asgDepartment" /></div>
+        <div class="field"><label>Job supervisor (optional)</label><select id="asgSupervisor"><option value="">—</option></select></div>
+        <div class="field"><label>Shift date</label><input type="date" id="asgDate" /></div>
+        <div class="field"><label>Start time</label><input type="time" id="asgStart" /></div>
+        <div class="field"><label>End time</label><input type="time" id="asgEnd" /></div>
+        <div class="field"><label>Notes (optional)</label><textarea id="asgNotes" rows="2"></textarea></div>
+        <p class="error-msg" id="asgErr"></p>
+        <button class="btn btn-primary btn-sm" id="asgCreateBtn">Create assignment</button>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center;">
+        <input type="date" id="asgFilterDate" />
+        <select id="asgFilterStatus">
+          <option value="">All statuses</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="on_my_way">On my way</option>
+          <option value="running_late">Running late</option>
+          <option value="arrived">Arrived</option>
+          <option value="in_progress">In progress</option>
+          <option value="leaving_early_requested">Leave-early requested</option>
+          <option value="absent">Absent</option>
+          <option value="possible_no_show">Possible no-show</option>
+          <option value="no_show">No-show</option>
+          <option value="shift_complete">Shift complete</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <button class="btn btn-sm" id="asgFilterClearBtn">Clear date filter</button>
+      </div>
+      <div class="panel" id="assignmentsListPanel">
+        <table class="data-table" id="assignmentsTable">
+          <thead><tr><th>Worker</th><th>Client</th><th>Shift</th><th>Status</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="panel" id="assignmentDetailPanel" style="display:none;">
+        <p class="panel-title" id="assignmentDetailTitle"></p>
+        <div id="assignmentDetailBody"></div>
+        <button class="btn btn-sm" id="leadMessageBtn" style="margin-top:10px;">Send a message</button>
+        <div id="leadMessageForm" style="display:none;margin-top:10px;">
+          <div class="field"><label>Message to temp</label><textarea id="leadMessageBody" rows="3"></textarea></div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:6px 0;">
+            <input type="checkbox" id="leadMessageIncludeClient" /> Also share with the client
+          </label>
+          <button class="btn btn-primary btn-sm" id="leadSendMessageBtn">Send</button>
+          <p class="error-msg" id="leadMessageErr"></p>
+        </div>
+        <p class="section-label" style="margin-top:16px;">Communication Record</p>
+        <div id="assignmentDetailEvents"></div>
+      </div>
+    </div>
+
+    <div id="view-clients" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Client Companies</h1><div class="sub">Companies you place workers with</div></div>
+        <button class="btn btn-sm btn-primary" id="newClientBtn">New client company</button>
+      </div>
+      <div class="panel" id="newClientPanel" style="display:none;">
+        <div class="field"><label>Company name</label><input id="clientName" /></div>
+        <div class="field"><label>Notes (optional)</label><textarea id="clientNotes" rows="2"></textarea></div>
+        <button class="btn btn-primary btn-sm" id="clientCreateBtn">Create</button>
+      </div>
+      <div class="panel" id="clientsListPanel">
+        <table class="data-table" id="clientsTable">
+          <thead><tr><th>Name</th><th>Notes</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="panel" id="clientDetailPanel" style="display:none;">
+        <p class="panel-title" id="clientDetailTitle"></p>
+        <div id="clientBillingSection" style="display:none;border:1px solid var(--line);border-radius:var(--r-md);padding:14px;margin-bottom:16px;background:var(--bg);">
+          <p class="section-label">Billing</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="field"><label>Bill rate (per hour, to client)</label><input id="clientBillRate" type="number" step="0.01" placeholder="e.g. 28.00" /></div>
+            <div class="field"><label>Pay rate (per hour, to worker)</label><input id="clientPayRate" type="number" step="0.01" placeholder="e.g. 18.00" /></div>
+            <div class="field"><label>Contract value (optional)</label><input id="clientContractValue" type="number" step="0.01" placeholder="e.g. 50000" /></div>
+            <div class="field"><label>Billing notes</label><input id="clientBillingNotes" placeholder="Terms, invoice cadence, etc." /></div>
+          </div>
+          <button class="btn btn-sm btn-primary" id="saveClientBillingBtn">Save billing</button>
+        </div>
+        <p class="section-label">Locations</p>
+        <div id="clientLocationsList"></div>
+        <div style="display:flex;gap:8px;margin:8px 0 16px;">
+          <input id="newLocationName" placeholder="Location name" style="flex:1;" />
+          <input id="newLocationAddress" placeholder="Address (optional)" style="flex:1;" />
+          <button class="btn btn-sm" id="addLocationBtn">Add</button>
+        </div>
+        <p class="section-label">Contacts (supervisors / HR)</p>
+        <div id="clientContactsList"></div>
+        <div style="margin-top:8px;">
+          <div class="field"><label>Name</label><input id="newContactName" /></div>
+          <div class="field"><label>Email</label><input id="newContactEmail" type="email" /></div>
+          <div class="field"><label>Phone (optional)</label><input id="newContactPhone" /></div>
+          <div class="field"><label>Temporary password</label><input id="newContactPassword" /></div>
+          <div class="field"><label>Role</label>
+            <select id="newContactRole"><option value="client_supervisor">Job Supervisor</option><option value="client_hr">Client HR</option></select>
+          </div>
+          <p class="error-msg" id="newContactErr"></p>
+          <button class="btn btn-sm" id="addContactBtn">Add contact</button>
+        </div>
+      </div>
+    </div>
+
     <div id="view-week" class="view" style="display:none;">
       <div class="page-header"><div><h1>This week</h1><div class="sub">Monday through Friday, accumulating live</div></div></div>
       <div class="kpi-grid" id="weekKpis"></div>
@@ -64,9 +187,21 @@
       </div>
     </div>
 
+    <div id="view-fieldworkers" class="view" style="display:none;">
+      <div class="page-header"><div><h1>Temps</h1><div class="sub">People the agency places at a client job site — separate accounts from your recruiter team, used only for assignments</div></div>
+        <button class="btn btn-sm" id="addFieldWorkerBtn">Add temp</button>
+      </div>
+      <div class="panel" id="fieldWorkerRosterPanel">
+        <table class="data-table" id="fieldWorkerRosterTable">
+          <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <div id="view-workers" class="view" style="display:none;">
-      <div class="page-header"><div><h1>Workers</h1><div class="sub">Roster and individual performance</div></div>
-        <button class="btn btn-sm" id="addWorkerBtn">Add worker</button>
+      <div class="page-header"><div><h1>Recruiters</h1><div class="sub">Roster and individual performance</div></div>
+        <button class="btn btn-sm" id="addWorkerBtn">Add recruiter</button>
       </div>
       <div class="panel" id="rosterPanel">
         <table class="data-table" id="rosterTable">
@@ -100,7 +235,7 @@
     </div>
 
     <div id="view-time" class="view" style="display:none;">
-      <div class="page-header"><div><h1>Time entry</h1><div class="sub">Manager-only. Workers cannot view or edit this.</div></div></div>
+      <div class="page-header"><div><h1>Time entry</h1><div class="sub">Lead-only. Recruiters cannot view or edit this.</div></div></div>
       <div class="panel">
         <p class="panel-title">Add a time entry</p>
         <div class="field"><label>Worker</label><select id="timeWorkerSelect"></select></div>
@@ -186,11 +321,11 @@
     <div id="view-settings" class="view" style="display:none;">
       <div class="page-header"><div><h1>Settings</h1><div class="sub">Agency-wide options</div></div></div>
       <div class="panel">
-        <p class="panel-title">Worker self clock-in</p>
+        <p class="panel-title">Recruiter self clock-in</p>
         <p style="font-size:14px;color:var(--text-2,#667085);margin:0 0 12px;max-width:520px;">
-          Off by default. Turn this on to let workers clock themselves in and out from their own dashboard —
+          Off by default. Turn this on to let recruiters clock themselves in and out from their own dashboard —
           their clock times show up on their own work history and are visible to you in their record. This is
-          separate from your manager-entered Time Entry, which always stays under your control.
+          separate from your lead-entered Time Entry, which always stays under your control.
         </p>
         <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;">
           <input type="checkbox" id="selfClockinToggle" style="width:18px;height:18px;" />
@@ -198,6 +333,25 @@
         </label>
         <p class="error-msg" id="settingsErr"></p>
         <p id="settingsOwnerNote" style="font-size:12px;color:var(--text-2,#667085);margin-top:10px;display:none;">Only the agency owner can change this.</p>
+      </div>
+      <div class="panel">
+        <p class="panel-title">On-call / after-hours contact routing</p>
+        <p style="font-size:14px;color:var(--text-2,#667085);margin:0 0 12px;max-width:520px;">
+          Configure who "Contact My Staffing Agency" resolves to at different times of day, so workers never need
+          to know who's on call. Rules are checked in order; the first matching time window wins.
+        </p>
+        <table class="data-table" id="contactRulesTable">
+          <thead><tr><th>Label</th><th>Window</th><th>Contact</th><th>Emergency</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:flex-end;">
+          <div class="field" style="margin:0;"><label>Label</label><input id="ruleLabel" placeholder="e.g. Evening on-call" style="width:160px;" /></div>
+          <div class="field" style="margin:0;"><label>Start</label><input type="time" id="ruleStart" /></div>
+          <div class="field" style="margin:0;"><label>End</label><input type="time" id="ruleEnd" /></div>
+          <div class="field" style="margin:0;"><label>Contact</label><select id="ruleContact"></select></div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="ruleEmergency" /> Emergency contact</label>
+          <button class="btn btn-sm btn-primary" id="addRuleBtn">Add rule</button>
+        </div>
       </div>
     </div>
 
@@ -228,6 +382,7 @@
 <script>
 let categoriesCache = [];
 let workersCache = [];
+let fieldWorkersCache = [];
 
 function fmtDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
 
@@ -255,7 +410,7 @@ function switchView(view) {
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
   document.getElementById('view-' + view).style.display = 'block';
   document.querySelector('.nav-item[data-view="' + view + '"]').classList.add('active');
-  const loaders = { today: loadToday, week: loadWeek, workers: loadWorkers, categories: loadCategories, time: loadTime, review: loadReview, photos: loadPhotoReview, friday: loadFriday, tasks: loadTasks, ai: loadAI, settings: loadSettings, billing: loadBilling };
+  const loaders = { today: loadToday, week: loadWeek, workers: loadWorkers, categories: loadCategories, time: loadTime, review: loadReview, photos: loadPhotoReview, friday: loadFriday, tasks: loadTasks, ai: loadAI, settings: loadSettings, billing: loadBilling, attention: loadAttention, assignments: loadAssignmentsView, clients: loadClientsView, fieldworkers: loadFieldWorkers };
   if (loaders[view]) loaders[view]();
 }
 
@@ -329,7 +484,7 @@ async function loadWeek() {
     type: 'bar',
     data: {
       labels: Object.keys(w.dailyTotals).map((d) => d[0] + d.slice(1).toLowerCase()),
-      datasets: [{ label: 'Daily activity', data: Object.values(w.dailyTotals), backgroundColor: '#2a5bd7', borderRadius: 4 }],
+      datasets: [{ label: 'Daily activity', data: Object.values(w.dailyTotals), backgroundColor: '#f2600d', borderRadius: 4 }],
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
   });
@@ -369,6 +524,44 @@ document.getElementById('addWorkerBtn').addEventListener('click', async () => {
   loadWorkers();
 });
 
+// ---- Temps ----
+// Internally still the "field_worker" account type (kept as-is under the
+// hood), displayed to the user as "Temp" — a separate account from the
+// Recruiter roster above. This is the person actually sent
+// out to a client job site for a scheduled shift, used only for
+// assignments in the Assignment Communication Network.
+async function loadFieldWorkers() {
+  const res = await fetch('/api/manager/field-workers');
+  fieldWorkersCache = await res.json();
+  const tbody = document.querySelector('#fieldWorkerRosterTable tbody');
+  tbody.innerHTML = fieldWorkersCache.length
+    ? fieldWorkersCache.map((w) => `
+      <tr>
+        <td>${w.name}</td>
+        <td>${w.email}</td>
+        <td>${w.phone || '—'}</td>
+        <td>${w.active === false ? '<span class="pill red">Inactive</span>' : '<span class="pill green">Active</span>'}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="4"><p class="empty">No temps yet. Add one to start assigning shifts.</p></td></tr>';
+}
+
+document.getElementById('addFieldWorkerBtn').addEventListener('click', async () => {
+  const name = prompt('Temp name:');
+  if (!name) return;
+  const email = prompt('Temp email:');
+  if (!email) return;
+  const phone = prompt('Temp phone (optional):') || '';
+  const password = prompt('Temporary password:');
+  if (!password) return;
+  const res = await fetch('/api/manager/field-workers-new', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, phone, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'Could not add temp'); return; }
+  loadFieldWorkers();
+});
+
 let currentWorkerDetail = null;
 async function openWorkerDetail(id) {
   const res = await fetch('/api/manager/workers/' + id);
@@ -383,7 +576,7 @@ async function openWorkerDetail(id) {
     type: 'line',
     data: {
       labels: data.history.map((h) => fmtDate(h.date)),
-      datasets: [{ label: 'Total activity', data: data.history.map((h) => h.total), borderColor: '#2a5bd7', backgroundColor: 'rgba(42,91,215,.1)', fill: true, tension: 0.3 }],
+      datasets: [{ label: 'Total activity', data: data.history.map((h) => h.total), borderColor: '#f2600d', backgroundColor: 'rgba(242,96,13,.1)', fill: true, tension: 0.3 }],
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
   });
@@ -488,7 +681,7 @@ async function loadReview() {
     ? rows.map((d) => `
       <div class="discrepancy-row" style="display:block;">
         <div style="display:flex;justify-content:space-between;">
-          <div><div class="who">${d.worker_name} — ${fmtDate(d.report_date)}</div><div class="why">Possible discrepancy — manager review required.<br/>${d.explanation}</div></div>
+          <div><div class="who">${d.worker_name} — ${fmtDate(d.report_date)}</div><div class="why">Possible discrepancy — lead review required.<br/>${d.explanation}</div></div>
         </div>
         <div class="discrepancy-actions">
           <button class="btn btn-sm" onclick="setDiscrepancy(${d.id}, 'reviewed')">Reviewed</button>
@@ -600,6 +793,7 @@ async function loadSettings() {
   const isOwner = myRole === 'owner';
   document.getElementById('selfClockinToggle').disabled = !isOwner;
   document.getElementById('settingsOwnerNote').style.display = isOwner ? 'none' : 'block';
+  loadContactRules();
 }
 
 document.getElementById('selfClockinToggle').addEventListener('change', async (e) => {
@@ -721,8 +915,8 @@ async function loadBilling() {
 
   el.innerHTML = `
     <div class="kpi-grid">
-      <div class="kpi-card"><p class="kpi-label">Current plan</p><p class="kpi-value">${b.planName}${b.isFoundingPartner ? ' 🏆' : ''}</p><p class="kpi-sub">${b.isFoundingPartner ? 'Founding Partner rate locked in' : ''}</p></div>
-      <div class="kpi-card"><p class="kpi-label">Monthly price</p><p class="kpi-value">$${b.priceDisplay}</p></div>
+      <div class="kpi-card"><p class="kpi-label">Current plan</p><p class="kpi-value">${b.planName}</p><p class="kpi-sub"></p></div>
+      <div class="kpi-card"><p class="kpi-label">Monthly price</p><p class="kpi-value">Coming Soon</p></div>
       <div class="kpi-card"><p class="kpi-label">Account status</p><p class="kpi-value"><span class="pill ${statusPill}">${b.billingStatus}</span></p></div>
       <div class="kpi-card"><p class="kpi-label">Next billing date</p><p class="kpi-value" style="font-size:18px;">${b.nextBillingDate || '—'}</p></div>
     </div>
@@ -734,18 +928,9 @@ async function loadBilling() {
     </div>
     <div class="panel">
       <p class="panel-title">Upgrade plan</p>
-      <div style="display:flex;gap:8px;">
-        ${b.upgradeOptions.map((p) => `<button class="btn btn-sm" onclick="upgradePlan('${p.key}')">${p.name} — $${p.priceDisplay}/mo</button>`).join('') || '<p class="empty">You are on the top self-serve plan. Contact sales for Enterprise.</p>'}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${b.upgradeOptions.map((p) => `<button class="btn btn-sm" disabled style="opacity:.6;cursor:not-allowed;">${p.name} — Coming Soon</button>`).join('') || '<p class="empty">You are on the top self-serve plan. Contact sales for Enterprise.</p>'}
       </div>
-    </div>
-    <div class="panel">
-      <p class="panel-title">Previous invoices / payments</p>
-      <table class="data-table">
-        <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
-        <tbody>
-          ${b.invoices.length ? b.invoices.map((i) => `<tr><td>${new Date(i.created_at).toLocaleDateString()}</td><td>${i.description || i.type}</td><td>$${(i.amount_cents / 100).toFixed(2)}</td><td><span class="pill ${i.status === 'paid' ? 'green' : i.status === 'waived' ? 'gray' : 'amber'}">${i.status}</span></td></tr>`).join('') : '<tr><td colspan="4" class="empty">No invoices yet.</td></tr>'}
-        </tbody>
-      </table>
     </div>`;
 }
 
@@ -758,15 +943,402 @@ async function openBillingPortal() {
   window.location.href = data.url;
 }
 
-async function upgradePlan(planKey) {
-  if (!confirm('Change your subscription to this plan?')) return;
-  const res = await fetch('/api/billing/upgrade', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plan: planKey }),
+
+// ════════════════════════════════════════════════════════════════════
+// ASSIGNMENT COMMUNICATION NETWORK — manager side.
+// "What needs attention?" is the primary screen (spec §22) — never an
+// inbox. Assignments and Client Companies support it.
+// ════════════════════════════════════════════════════════════════════
+
+// ---- Needs Attention ----
+async function loadAttention() {
+  const res = await fetch('/api/manager/attention');
+  const s = await res.json();
+
+  const kpis = document.getElementById('attentionKpis');
+  kpis.innerHTML = '';
+  const cards = [
+    { label: 'Scheduled today', value: s.scheduledToday },
+    { label: 'Confirmed / working', value: s.confirmedOrWorking, cls: 'good' },
+    { label: 'Running late', value: s.runningLate, cls: s.runningLate ? 'warn' : 'good' },
+    { label: 'Absences', value: s.absences, cls: s.absences ? 'bad' : 'good' },
+    { label: 'Possible no-shows', value: s.possibleNoShows, cls: s.possibleNoShows ? 'bad' : 'good' },
+    { label: 'No-shows', value: s.noShows, cls: s.noShows ? 'bad' : 'good' },
+  ];
+  for (const c of cards) {
+    const el = document.createElement('div');
+    el.className = 'kpi-card';
+    el.innerHTML = `<p class="kpi-label">${c.label}</p><p class="kpi-value ${c.cls || ''}">${c.value}</p>`;
+    kpis.appendChild(el);
+  }
+
+  const SEVERITY_PILL = { emergency: 'red', urgent: 'amber', normal: 'gray' };
+  const el = document.getElementById('attentionList');
+  el.innerHTML = s.needsAttention.length ? s.needsAttention.map((e) => {
+    const when = new Date(e.created_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
+    let actions = `<button class="btn btn-sm" onclick="ackEvent(${e.id},'acknowledged')">Acknowledge</button>
+      <button class="btn btn-sm" onclick="ackEvent(${e.id},'resolved')">Resolved</button>
+      <button class="btn btn-sm" onclick="viewAssignmentFromAttention(${e.assignment_id})">View assignment</button>`;
+    if (e.event_type === 'leaving_early_request') {
+      actions = `<button class="btn btn-sm" onclick="leavingEarlyResponse(${e.assignment_id},'approved')">Approve</button>
+        <button class="btn btn-sm" onclick="leavingEarlyResponse(${e.assignment_id},'denied')">Deny</button>
+        <button class="btn btn-sm" onclick="leavingEarlyResponse(${e.assignment_id},'more_info')">Ask for more info</button>`;
+    }
+    return `<div class="discrepancy-row" style="display:block;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div>
+          <div class="who">${e.worker_name} — ${e.client_company_name}</div>
+          <div class="why">${e.summary}${e.details ? '<br/>' + e.details : ''}<br/>${when}</div>
+        </div>
+        <span class="pill ${SEVERITY_PILL[e.severity] || 'gray'}">${(e.status || '').replace(/_/g, ' ')}</span>
+      </div>
+      <div class="discrepancy-actions">${actions}</div>
+    </div>`;
+  }).join('') : '<p class="empty">Nothing needs attention right now.</p>';
+}
+
+async function ackEvent(id, action) {
+  await fetch('/api/manager/events/' + id + '/acknowledge', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+  });
+  loadAttention();
+}
+
+async function leavingEarlyResponse(assignmentId, decision) {
+  let note = '';
+  if (decision === 'more_info') note = prompt('What additional info do you need?') || '';
+  await fetch('/api/manager/assignments/' + assignmentId + '/leaving-early-response', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, note }),
+  });
+  loadAttention();
+}
+
+function viewAssignmentFromAttention(assignmentId) {
+  switchView('assignments');
+  setTimeout(() => openAssignmentDetail(assignmentId), 150);
+}
+
+// ---- Assignments ----
+let assignmentClientsCache = [];
+async function loadAssignmentsView() {
+  if (!workersCache.length) { const r = await fetch('/api/manager/workers'); workersCache = await r.json(); }
+  if (!assignmentClientsCache.length) { const r = await fetch('/api/manager/client-companies'); assignmentClientsCache = await r.json(); }
+  if (!fieldWorkersCache.length) { const r = await fetch('/api/manager/field-workers'); fieldWorkersCache = await r.json(); }
+  document.getElementById('asgWorker').innerHTML = fieldWorkersCache.length
+    ? fieldWorkersCache.map((w) => `<option value="${w.id}">${w.name}</option>`).join('')
+    : '<option value="">No temps yet — add one first</option>';
+  document.getElementById('asgClient').innerHTML = assignmentClientsCache.map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
+  await onAsgClientChange();
+  await refreshAssignmentsTable();
+}
+
+document.getElementById('newAssignmentBtn').addEventListener('click', () => {
+  const p = document.getElementById('newAssignmentPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('asgClient').addEventListener('change', onAsgClientChange);
+async function onAsgClientChange() {
+  const clientId = document.getElementById('asgClient').value;
+  if (!clientId) return;
+  const res = await fetch('/api/manager/client-companies/' + clientId);
+  const data = await res.json();
+  document.getElementById('asgLocation').innerHTML = '<option value="">—</option>' + (data.locations || []).map((l) => `<option value="${l.id}">${l.name}</option>`).join('');
+  document.getElementById('asgSupervisor').innerHTML = '<option value="">—</option>' + (data.contacts || []).map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+document.getElementById('asgCreateBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('asgErr');
+  errEl.textContent = '';
+  const body = {
+    workerId: Number(document.getElementById('asgWorker').value),
+    clientCompanyId: Number(document.getElementById('asgClient').value),
+    clientLocationId: document.getElementById('asgLocation').value || null,
+    department: document.getElementById('asgDepartment').value || null,
+    supervisorContactId: document.getElementById('asgSupervisor').value || null,
+    shiftDate: document.getElementById('asgDate').value,
+    startTime: document.getElementById('asgStart').value,
+    endTime: document.getElementById('asgEnd').value,
+    notes: document.getElementById('asgNotes').value || null,
+  };
+  if (!body.workerId || !body.clientCompanyId || !body.shiftDate || !body.startTime || !body.endTime) {
+    errEl.textContent = 'Worker, client, date, start and end time are required.';
+    return;
+  }
+  const res = await fetch('/api/manager/assignments', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) { alert(data.error || 'Could not change plan'); return; }
-  loadBilling();
+  if (!res.ok) { errEl.textContent = data.error || 'Could not create assignment'; return; }
+  document.getElementById('newAssignmentPanel').style.display = 'none';
+  ['asgDepartment', 'asgNotes'].forEach((id) => (document.getElementById(id).value = ''));
+  refreshAssignmentsTable();
+});
+
+document.getElementById('asgFilterDate').addEventListener('change', refreshAssignmentsTable);
+document.getElementById('asgFilterStatus').addEventListener('change', refreshAssignmentsTable);
+document.getElementById('asgFilterClearBtn').addEventListener('click', () => {
+  document.getElementById('asgFilterDate').value = '';
+  refreshAssignmentsTable();
+});
+
+const ASSIGNMENT_PILL = {
+  on_my_way: 'amber', running_late: 'amber', arrived: 'green', in_progress: 'green',
+  absent: 'red', possible_no_show: 'red', no_show: 'red', cancelled: 'gray',
+  shift_complete: 'green', leaving_early_requested: 'amber', scheduled: 'gray', confirmed: 'gray',
+};
+async function refreshAssignmentsTable() {
+  const date = document.getElementById('asgFilterDate').value;
+  const status = document.getElementById('asgFilterStatus').value;
+  const qs = new URLSearchParams();
+  if (date) qs.set('date', date);
+  if (status) qs.set('status', status);
+  const res = await fetch('/api/manager/assignments?' + qs.toString());
+  const rows = await res.json();
+  const tbody = document.querySelector('#assignmentsTable tbody');
+  tbody.innerHTML = rows.length ? rows.map((a) => `
+    <tr>
+      <td>${a.worker_name}</td>
+      <td>${a.client_company_name}${a.client_location_name ? ' — ' + a.client_location_name : ''}</td>
+      <td>${fmtDate(String(a.shift_date).slice(0, 10))} ${a.start_time}–${a.end_time}</td>
+      <td><span class="pill ${ASSIGNMENT_PILL[a.status] || 'gray'}">${(a.status || '').replace(/_/g, ' ')}</span></td>
+      <td><button class="btn btn-sm" onclick="openAssignmentDetail(${a.id})">View</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" class="empty">No assignments match.</td></tr>';
+}
+
+let currentLeadAssignmentId = null;
+
+async function openAssignmentDetail(id) {
+  currentLeadAssignmentId = id;
+  const res = await fetch('/api/manager/assignments/' + id);
+  const { assignment: a, events } = await res.json();
+  document.getElementById('assignmentDetailPanel').style.display = 'block';
+  document.getElementById('assignmentDetailTitle').textContent = `${a.worker_name} — ${a.client_company_name}`;
+  document.getElementById('leadMessageForm').style.display = 'none';
+  document.getElementById('leadMessageErr').textContent = '';
+
+  let actions = '';
+  if (!['shift_complete', 'cancelled', 'no_show'].includes(a.status)) {
+    actions += `<button class="btn btn-sm" onclick="cancelAssignment(${a.id})">Cancel assignment</button>`;
+  }
+  if (['scheduled', 'confirmed', 'on_my_way', 'running_late'].includes(a.status)) {
+    actions += `<button class="btn btn-sm" onclick="markNoShow(${a.id})">Mark no-show</button>`;
+  }
+  document.getElementById('assignmentDetailBody').innerHTML = `
+    <div class="why">${a.department ? 'Department: ' + a.department + '<br/>' : ''}${a.client_location_name ? 'Location: ' + a.client_location_name + '<br/>' : ''}${a.supervisor_name ? 'Supervisor: ' + a.supervisor_name + '<br/>' : ''}Shift: ${fmtDate(String(a.shift_date).slice(0, 10))} ${a.start_time}–${a.end_time}<br/>Status: <span class="pill ${ASSIGNMENT_PILL[a.status] || 'gray'}">${(a.status || '').replace(/_/g, ' ')}</span></div>
+    <div style="margin-top:10px;">${actions}</div>`;
+
+  const evEl = document.getElementById('assignmentDetailEvents');
+  evEl.innerHTML = events.length ? events.slice().reverse().map((e) => {
+    const when = new Date(e.created_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
+    const ackLine = e.acknowledgments && e.acknowledgments.length ? e.acknowledgments.map((ak) => `${ak.actor_name || ak.actor_type}: ${ak.action}`).join(' &middot; ') : '';
+    let evActions = e.status !== 'resolved' ? `<button class="btn btn-sm" onclick="ackEventInDetail(${e.id}, ${a.id})">Acknowledge / Resolve</button>` : '';
+    return `<div class="discrepancy-row">
+      <div><div class="who">${e.summary}</div><div class="why">${when}${e.details ? '<br/>' + e.details : ''}${ackLine ? '<br/>' + ackLine : ''}</div></div>
+      <div>${evActions}</div>
+    </div>`;
+  }).join('') : '<p class="empty">No activity yet.</p>';
+}
+
+async function ackEventInDetail(eventId, assignmentId) {
+  await ackEvent(eventId, 'resolved');
+  openAssignmentDetail(assignmentId);
+}
+
+async function cancelAssignment(id) {
+  if (!confirm('Cancel this assignment?')) return;
+  await fetch('/api/manager/assignments/' + id + '/cancel', { method: 'POST' });
+  refreshAssignmentsTable();
+  openAssignmentDetail(id);
+}
+
+async function markNoShow(id) {
+  if (!confirm('Mark this assignment as a no-call/no-show?')) return;
+  await fetch('/api/manager/assignments/' + id + '/mark-no-show', { method: 'POST' });
+  refreshAssignmentsTable();
+  openAssignmentDetail(id);
+}
+
+document.getElementById('leadMessageBtn').addEventListener('click', () => {
+  const f = document.getElementById('leadMessageForm');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('leadSendMessageBtn').addEventListener('click', async () => {
+  if (!currentLeadAssignmentId) return;
+  const errEl = document.getElementById('leadMessageErr');
+  errEl.textContent = '';
+  const body = document.getElementById('leadMessageBody').value;
+  const includeClient = document.getElementById('leadMessageIncludeClient').checked;
+  if (!body.trim()) { errEl.textContent = 'Enter a message.'; return; }
+  const res = await fetch('/api/manager/assignments/' + currentLeadAssignmentId + '/message', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, includeClient }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    errEl.textContent = res.status === 403
+      ? 'Messaging isn\'t turned on for your agency yet. Ask your Twanova rep about the Temp Chat upgrade.'
+      : (data.error || 'Could not send message');
+    return;
+  }
+  document.getElementById('leadMessageBody').value = '';
+  document.getElementById('leadMessageIncludeClient').checked = false;
+  document.getElementById('leadMessageForm').style.display = 'none';
+  openAssignmentDetail(currentLeadAssignmentId);
+});
+
+// ---- Client Companies ----
+async function loadClientsView() {
+  const res = await fetch('/api/manager/client-companies');
+  const rows = await res.json();
+  const tbody = document.querySelector('#clientsTable tbody');
+  tbody.innerHTML = rows.length ? rows.map((c) => `
+    <tr><td>${c.name}</td><td>${c.notes || ''}</td><td><button class="btn btn-sm" onclick="openClientDetail(${c.id})">View</button></td></tr>`).join('')
+    : '<tr><td colspan="3" class="empty">No client companies yet.</td></tr>';
+  document.getElementById('clientDetailPanel').style.display = 'none';
+}
+
+document.getElementById('newClientBtn').addEventListener('click', () => {
+  const p = document.getElementById('newClientPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('clientCreateBtn').addEventListener('click', async () => {
+  const name = document.getElementById('clientName').value.trim();
+  if (!name) return;
+  const notes = document.getElementById('clientNotes').value.trim();
+  await fetch('/api/manager/client-companies', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, notes }),
+  });
+  document.getElementById('clientName').value = '';
+  document.getElementById('clientNotes').value = '';
+  document.getElementById('newClientPanel').style.display = 'none';
+  assignmentClientsCache = [];
+  loadClientsView();
+});
+
+let currentClientId = null;
+async function openClientDetail(id) {
+  currentClientId = id;
+  const res = await fetch('/api/manager/client-companies/' + id);
+  const data = await res.json();
+  document.getElementById('clientDetailPanel').style.display = 'block';
+  document.getElementById('clientDetailTitle').textContent = data.name;
+
+  const billingSection = document.getElementById('clientBillingSection');
+  if (myRole === 'owner') {
+    billingSection.style.display = 'block';
+    document.getElementById('clientBillRate').value = data.bill_rate_hourly || '';
+    document.getElementById('clientPayRate').value = data.pay_rate_hourly || '';
+    document.getElementById('clientContractValue').value = data.contract_value || '';
+    document.getElementById('clientBillingNotes').value = data.billing_notes || '';
+  } else {
+    billingSection.style.display = 'none';
+  }
+
+  document.getElementById('clientLocationsList').innerHTML = data.locations.length
+    ? data.locations.map((l) => `<div class="discrepancy-row"><div class="who">${l.name}</div><div class="why">${l.address || ''}</div></div>`).join('')
+    : '<p class="empty">No locations added yet.</p>';
+
+  document.getElementById('clientContactsList').innerHTML = data.contacts.length
+    ? data.contacts.map((c) => `<div class="discrepancy-row"><div><div class="who">${c.name}</div><div class="why">${c.email}${c.phone ? ' · ' + c.phone : ''}</div></div><span class="pill ${c.role === 'client_hr' ? 'gray' : 'green'}">${c.role === 'client_hr' ? 'Client HR' : 'Job Supervisor'}</span></div>`).join('')
+    : '<p class="empty">No contacts added yet.</p>';
+}
+
+document.getElementById('saveClientBillingBtn').addEventListener('click', async () => {
+  if (!currentClientId) return;
+  const billRateHourly = document.getElementById('clientBillRate').value.trim();
+  const payRateHourly = document.getElementById('clientPayRate').value.trim();
+  const contractValue = document.getElementById('clientContractValue').value.trim();
+  const billingNotes = document.getElementById('clientBillingNotes').value.trim();
+  const res = await fetch('/api/manager/client-companies/' + currentClientId + '/billing', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      billRateHourly: billRateHourly ? Number(billRateHourly) : null,
+      payRateHourly: payRateHourly ? Number(payRateHourly) : null,
+      contractValue: contractValue ? Number(contractValue) : null,
+      billingNotes: billingNotes || null,
+    }),
+  });
+  if (res.ok) {
+    const btn = document.getElementById('saveClientBillingBtn');
+    const original = btn.textContent;
+    btn.textContent = 'Saved';
+    setTimeout(() => { btn.textContent = original; }, 1200);
+  }
+});
+
+document.getElementById('addLocationBtn').addEventListener('click', async () => {
+  if (!currentClientId) return;
+  const name = document.getElementById('newLocationName').value.trim();
+  if (!name) return;
+  const address = document.getElementById('newLocationAddress').value.trim();
+  await fetch('/api/manager/client-companies/' + currentClientId + '/locations', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, address }),
+  });
+  document.getElementById('newLocationName').value = '';
+  document.getElementById('newLocationAddress').value = '';
+  openClientDetail(currentClientId);
+});
+
+document.getElementById('addContactBtn').addEventListener('click', async () => {
+  if (!currentClientId) return;
+  const errEl = document.getElementById('newContactErr');
+  errEl.textContent = '';
+  const name = document.getElementById('newContactName').value.trim();
+  const email = document.getElementById('newContactEmail').value.trim();
+  const phone = document.getElementById('newContactPhone').value.trim();
+  const password = document.getElementById('newContactPassword').value;
+  const role = document.getElementById('newContactRole').value;
+  if (!name || !email || !password) { errEl.textContent = 'Name, email, and a temporary password are required.'; return; }
+  const res = await fetch('/api/manager/client-companies/' + currentClientId + '/contacts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, phone, password, role }),
+  });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Could not add contact'; return; }
+  ['newContactName', 'newContactEmail', 'newContactPhone', 'newContactPassword'].forEach((id) => (document.getElementById(id).value = ''));
+  openClientDetail(currentClientId);
+});
+
+// ---- On-call / after-hours contact routing (Settings tab) ----
+async function loadContactRules() {
+  if (!workersCache.length) { const r = await fetch('/api/manager/workers'); workersCache = await r.json(); }
+  document.getElementById('ruleContact').innerHTML = workersCache.map((w) => `<option value="${w.id}">${w.name}</option>`).join('');
+
+  const res = await fetch('/api/manager/contact-rules');
+  const rows = await res.json();
+  const tbody = document.querySelector('#contactRulesTable tbody');
+  tbody.innerHTML = rows.length ? rows.map((r) => `
+    <tr>
+      <td>${r.label}</td>
+      <td>${r.start_time}–${r.end_time}</td>
+      <td>${r.contact_name}</td>
+      <td>${r.is_emergency_contact ? '<span class="pill red">Emergency</span>' : ''}</td>
+      <td><button class="btn btn-sm" onclick="deleteContactRule(${r.id})">Remove</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" class="empty">No routing rules yet — "Contact My Staffing Agency" will fall back to any agency owner/lead.</td></tr>';
+}
+
+document.getElementById('addRuleBtn').addEventListener('click', async () => {
+  const label = document.getElementById('ruleLabel').value.trim();
+  const startTime = document.getElementById('ruleStart').value;
+  const endTime = document.getElementById('ruleEnd').value;
+  const contactUserId = Number(document.getElementById('ruleContact').value);
+  const isEmergencyContact = document.getElementById('ruleEmergency').checked;
+  if (!label || !startTime || !endTime || !contactUserId) { alert('Label, start/end time, and contact are required.'); return; }
+  await fetch('/api/manager/contact-rules', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label, startTime, endTime, contactUserId, isEmergencyContact }),
+  });
+  document.getElementById('ruleLabel').value = '';
+  document.getElementById('ruleStart').value = '';
+  document.getElementById('ruleEnd').value = '';
+  document.getElementById('ruleEmergency').checked = false;
+  loadContactRules();
+});
+
+async function deleteContactRule(id) {
+  await fetch('/api/manager/contact-rules/' + id, { method: 'DELETE' });
+  loadContactRules();
 }
 
 loadMe();

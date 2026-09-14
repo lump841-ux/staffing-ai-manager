@@ -1,13 +1,16 @@
 :root {
-  --ink: #101828;
-  --ink-2: #475467;
-  --ink-3: #98a2b3;
-  --line: #e4e7ec;
-  --line-2: #eaecf0;
-  --bg: #eaf2fc;
+  /* Twanova brand — navy + orange, matched to the logo mark */
+  --navy: #0b1f47;
+  --navy-lt: #e9edf5;
+  --ink: #0b1f47;
+  --ink-2: #4b5768;
+  --ink-3: #97a1b0;
+  --line: #e2e5eb;
+  --line-2: #ecedf1;
+  --bg: #f5f6f8;
   --card: #ffffff;
-  --blue: #2a5bd7;
-  --blue-lt: #eaf0ff;
+  --blue: #f2600d;
+  --blue-lt: #fef0e6;
   --green: #0f9d58;
   --green-lt: #e8f8ee;
   --red: #d92d20;
@@ -16,8 +19,8 @@
   --amber-lt: #fff6e5;
   --r-md: 10px;
   --r-lg: 14px;
-  --sh-sm: 0 1px 2px rgba(16,24,40,.06);
-  --sh-md: 0 4px 12px rgba(16,24,40,.08);
+  --sh-sm: 0 1px 2px rgba(11,31,71,.06);
+  --sh-md: 0 4px 12px rgba(11,31,71,.08);
 }
 
 * { box-sizing: border-box; }
@@ -94,7 +97,7 @@ a { color: var(--blue); text-decoration: none; }
 }
 .btn:hover { background: var(--bg); }
 .btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
-.btn-primary:hover { background: #234ab8; }
+.btn-primary:hover { background: #cf4f08; }
 .btn-block { width: 100%; }
 .btn-sm { padding: 6px 10px; font-size: 13px; }
 
@@ -168,7 +171,11 @@ table.data-table th { text-align: left; font-size: 12px; color: var(--ink-3); te
 table.data-table td { padding: 10px 10px; border-bottom: 1px solid var(--line-2); }
 table.data-table tr:last-child td { border-bottom: none; }
 
-.discrepancy-row { display: flex; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line-2); }
+/* align-items:flex-start is required here — without it, flex's default
+   "stretch" makes a short sibling (a .pill badge, an .avatar-sm) match the
+   full height of a taller multi-line sibling, and border-radius:999px on
+   that stretched pill turns it into a bloated oval instead of a snug badge. */
+.discrepancy-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line-2); }
 .discrepancy-row:last-child { border-bottom: none; }
 .discrepancy-row .who { font-weight: 600; font-size: 14px; }
 .avatar-sm {
@@ -188,10 +195,21 @@ table.data-table tr:last-child td { border-bottom: none; }
 .worker-shell {
   max-width: 480px; margin: 0 auto; padding: 0 0 60px;
   min-height: 100vh;
-  background: linear-gradient(160deg, #12326b 0%, #2a5bd7 55%, #4f7fe8 100%);
+  background: linear-gradient(160deg, #0b1f47 0%, #6b4b3a 55%, #f2600d 100%);
 }
+/* Full-bleed white band across the top of the hero — the logo sits directly
+   on white here instead of in a floating badge, then the navy-to-orange
+   gradient takes over underneath for the rest of the hero/page. */
+.worker-hero-topband {
+  background: #fff;
+  padding: 20px 18px 16px;
+  display: flex;
+  align-items: center;
+}
+.worker-hero-topband .brand-lockup { margin: 0; display: flex; align-items: center; }
+.worker-hero-topband .brand-lockup img { height: 42px; width: auto; display: block; }
 .worker-hero {
-  padding: 22px 18px 28px;
+  padding: 20px 18px 28px;
   position: relative;
 }
 .worker-hero .brand-lockup { margin: 0 0 18px; display: flex; align-items: center; gap: 12px; }

@@ -2,20 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Pricing — Only A Job | Staffing Intelligence Platform</title>
+<title>Pricing — Twanova | Staffing Solutions</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
 </head>
 <body>
 <div class="marketing-shell">
   <div class="marketing-header">
     <div class="brand-lockup">
-      <img src="/manager/brand-logo.png" alt="Only A Job" />
-      <div><div class="brand-name">Only A Job</div><div class="brand-sub">Staffing Intelligence Platform</div></div>
+      <img src="/brand-logo-full.png" alt="Twanova — Staffing Solutions" style="height:34px;width:auto;" />
     </div>
     <div style="display:flex;gap:10px;">
-      <a class="btn btn-sm" href="/manager/login.html">Manager sign in</a>
-      <a class="btn btn-sm" href="/worker/login.html">Worker sign in</a>
+      <a class="btn btn-sm" href="/manager/login.html">Lead sign in</a>
+      <a class="btn btn-sm" href="/worker/login.html">Recruiter sign in</a>
     </div>
   </div>
 
@@ -57,17 +60,16 @@ async function loadPlans() {
     <div class="plan-card ${p.key === 'growth' ? 'featured' : ''}">
       ${p.key === 'growth' ? '<div class="plan-badge">Most Popular</div>' : ''}
       <div class="plan-name">${p.tagline}</div>
-      <div class="plan-price">$${p.priceDisplay}<small>/month</small></div>
+      <div class="plan-price">Coming Soon</div>
       ${p.limited ? `<div class="plan-slots">${p.slotsRemaining > 0 ? p.slotsRemaining + ' of 25 spots remaining' : 'SOLD OUT'}</div>` : ''}
       <p class="plan-blurb">${p.blurb}</p>
-      <div class="plan-setup">+ $${p.setupFeeDisplay} one-time onboarding/configuration fee</div>
       <a class="btn btn-primary btn-block" href="/signup.html?plan=${p.key}" ${p.limited && p.slotsRemaining <= 0 ? 'style="pointer-events:none;opacity:.5;"' : ''}>
-        ${p.limited && p.slotsRemaining <= 0 ? 'Sold out' : 'Start Your Agency'}
+        ${p.limited && p.slotsRemaining <= 0 ? 'Sold out' : 'Coming Soon'}
       </a>
     </div>`).join('') + `
     <div class="plan-card">
       <div class="plan-name">CUSTOM PRICING</div>
-      <div class="plan-price" style="font-size:22px;">Enterprise</div>
+      <div class="plan-price" style="font-size:22px;">Coming Soon</div>
       <p class="plan-blurb">Large staffing companies, regional organizations, franchises, and custom implementations.</p>
       <button class="btn btn-primary btn-block" onclick="document.getElementById('enterpriseCard').scrollIntoView({behavior:'smooth'}); document.getElementById('enterpriseCard').style.display='block';">Contact Sales</button>
     </div>`;

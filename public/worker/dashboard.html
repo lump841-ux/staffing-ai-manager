@@ -2,17 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Today — Worker Portal — Only A Job | Staffing Agencies</title>
+<title>Today — Recruiter Portal — Twanova | Staffing Solutions</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
 </head>
 <body>
 <div class="worker-shell">
-  <div class="worker-hero">
+  <div class="worker-hero-topband">
     <div class="brand-lockup">
-      <span class="brand-badge"><img src="/worker/brand-logo.png" alt="Only A Job" /></span>
-      <span class="brand-name">Staffing</span>
+      <img src="/worker/brand-logo-full.png" alt="Twanova — Staffing Solutions" />
     </div>
+  </div>
+  <div class="worker-hero">
     <div class="worker-hero-row">
       <div class="worker-avatar-wrap">
         <div class="worker-avatar" id="workerAvatar">—</div>
@@ -71,7 +76,7 @@
       </div>
       <div class="field">
         <label>Note (optional)</label>
-        <textarea id="proofNote" rows="2" placeholder="Anything the manager should know"></textarea>
+        <textarea id="proofNote" rows="2" placeholder="Anything the lead should know"></textarea>
       </div>
       <div class="field">
         <label>Photo proof</label>
@@ -103,7 +108,7 @@ function ringSVG(pct, size) {
   const c = size / 2;
   const circumference = 2 * Math.PI * r;
   const offset = circumference * (1 - Math.min(1, pct));
-  const color = pct >= 1 ? '#0f9d58' : pct >= 0.6 ? '#2a5bd7' : '#d92d20';
+  const color = pct >= 1 ? '#0f9d58' : pct >= 0.6 ? '#f2600d' : '#d92d20';
   return `<svg class="ring-svg" viewBox="0 0 ${size} ${size}">
     <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#eaecf0" stroke-width="7" />
     <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="7"
@@ -311,7 +316,7 @@ async function loadProofHistory() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
           <div>
             <div class="who">${p.title} — <span style="font-weight:400;">COMPLETED</span></div>
-            <div class="why">Submitted: ${new Date(p.submitted_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}${p.note ? '<br/>Note: ' + p.note : ''}${p.review_comment ? '<br/>Manager: ' + p.review_comment : ''}</div>
+            <div class="why">Submitted: ${new Date(p.submitted_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}${p.note ? '<br/>Note: ' + p.note : ''}${p.review_comment ? '<br/>Lead: ' + p.review_comment : ''}</div>
           </div>
           ${PROOF_STATUS_PILL[p.status] || ''}
         </div>
@@ -456,6 +461,7 @@ async function loadWorkHistory() {
     });
   });
 }
+
 
 loadMe();
 loadToday().then(() => { populateProofActivitySelect(); loadProofHistory(); });

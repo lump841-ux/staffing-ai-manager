@@ -1,21 +1,23 @@
-// Plan catalog + pricing math for the Only A Job SaaS billing layer.
+// Plan catalog + pricing math for the Twanova SaaS billing layer.
 // Kept as pure data + pure functions so routes/signup.js, routes/billing.js,
 // and routes/platform-admin.js all read from one source of truth.
 const db = require('./db');
 
-const FOUNDING_PARTNER_LIMIT = 25;
-
 // Enterprise has no fixed price — it's "Contact Sales" only, handled by
 // routes/signup.js posting to enterprise_leads instead of a checkout flow.
+// NOTE: the 'founding' key is kept as-is internally (it's the value stored
+// in organizations.plan and covered by that column's CHECK constraint) —
+// only the user-facing name/copy changed. This is now a plain, simple
+// tier like the others: no partner branding, no limited-slots scarcity.
 const PLANS = {
   founding: {
     key: 'founding',
-    name: 'Founding Agency',
+    name: 'Starter',
     priceCents: 29900,
     setupFeeCents: 50000,
-    tagline: 'FOUNDING PARTNER RATE',
-    blurb: `Limited to the first ${FOUNDING_PARTNER_LIMIT} agencies. Core Only A Job Staffing Intelligence platform with generous limits for a smaller agency. Your $299/month rate is locked in for as long as your account stays active and in good standing.`,
-    limited: true,
+    tagline: 'STARTER',
+    blurb: 'Core Twanova Staffing Solutions platform with generous limits for a smaller agency.',
+    limited: false,
   },
   growth: {
     key: 'growth',
@@ -61,18 +63,6 @@ function formatCents(cents) {
   return (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-async function countFoundingPartners() {
-  const { rows } = await db.query(
-    `SELECT COUNT(*)::int AS n FROM organizations WHERE is_founding_partner = TRUE`
-  );
-  return rows[0].n;
-}
-
-async function foundingSlotsRemaining() {
-  const used = await countFoundingPartners();
-  return Math.max(0, FOUNDING_PARTNER_LIMIT - used);
-}
-
 function nextBillingDateFrom(date) {
   const d = new Date(date);
   d.setMonth(d.getMonth() + 1);
@@ -81,11 +71,8 @@ function nextBillingDateFrom(date) {
 
 module.exports = {
   PLANS,
-  FOUNDING_PARTNER_LIMIT,
   getPlan,
   listCheckoutPlans,
   formatCents,
-  countFoundingPartners,
-  foundingSlotsRemaining,
   nextBillingDateFrom,
 };

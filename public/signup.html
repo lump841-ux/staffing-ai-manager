@@ -2,196 +2,33 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Start Your Agency — Only A Job</title>
+<title>Coming Soon — Twanova</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
 </head>
 <body>
 <div class="marketing-shell">
   <div class="marketing-header">
     <div class="brand-lockup">
-      <img src="/manager/brand-logo.png" alt="Only A Job" />
-      <div><div class="brand-name">Only A Job</div><div class="brand-sub">Start Your Agency</div></div>
+      <img src="/brand-logo-full.png" alt="Twanova — Staffing Solutions" style="height:34px;width:auto;" />
     </div>
-    <a class="btn btn-sm" href="/pricing.html">← Back to pricing</a>
+    <a class="btn btn-sm" href="/pricing.html">&larr; Back to pricing</a>
   </div>
 
   <div class="marketing-main">
-    <div class="wizard-steps">
-      <div class="wizard-step active" data-step="0">1. Company</div>
-      <div class="wizard-step" data-step="1">2. Contact &amp; Owner Login</div>
-      <div class="wizard-step" data-step="2">3. Billing</div>
-      <div class="wizard-step" data-step="3">4. Review &amp; Pay</div>
-      <div class="wizard-step" data-step="4">5. Done</div>
-    </div>
-
-    <div class="wizard-card">
-      <p class="error-msg" id="wizErr"></p>
-
-      <!-- Step 0: Company -->
-      <div class="wiz-panel" data-panel="0">
-        <h2>Your agency</h2>
-        <p class="sub">Selected plan: <strong id="selectedPlanLabel">—</strong></p>
-        <div class="field"><label>Company / Agency name</label><input id="companyName" required /></div>
-        <div class="field"><label>Primary office name</label><input id="officeName" placeholder="Main Office" /></div>
-        <div class="field"><label>Primary office address</label><input id="officeAddress" placeholder="Optional" /></div>
-        <div class="wizard-actions"><span></span><button class="btn btn-primary" onclick="goStep(1)">Continue</button></div>
-      </div>
-
-      <!-- Step 1: Contact + owner login -->
-      <div class="wiz-panel" data-panel="1" style="display:none;">
-        <h2>Primary contact &amp; owner login</h2>
-        <p class="sub">This person becomes the Agency Owner/Admin.</p>
-        <div class="field"><label>Full name</label><input id="contactName" required /></div>
-        <div class="field"><label>Email</label><input type="email" id="contactEmail" required /></div>
-        <div class="field"><label>Phone</label><input id="contactPhone" /></div>
-        <div class="field"><label>Password (8+ characters)</label><input type="password" id="password" required minlength="8" /></div>
-        <div class="wizard-actions"><button class="btn" onclick="goStep(0)">Back</button><button class="btn btn-primary" onclick="goStep(2)">Continue</button></div>
-      </div>
-
-      <!-- Step 2: Billing -->
-      <div class="wiz-panel" data-panel="2" style="display:none;">
-        <h2>Billing</h2>
-        <p class="sub">Only A Job uses Stripe for payment processing. On the next step you'll be securely redirected to Stripe to enter your card — we never see or store your card number ourselves.</p>
-        <div class="wizard-actions"><button class="btn" onclick="goStep(1)">Back</button><button class="btn btn-primary" onclick="goStep(3)">Continue</button></div>
-      </div>
-
-      <!-- Step 3: Review + Pay -->
-      <div class="wiz-panel" data-panel="3" style="display:none;">
-        <h2>Review &amp; pay</h2>
-        <div class="summary-row"><span class="label">Plan</span><span class="value" id="rvPlan">—</span></div>
-        <div class="summary-row"><span class="label">Monthly subscription</span><span class="value" id="rvMonthly">—</span></div>
-        <div class="summary-row"><span class="label">Setup / onboarding charge</span><span class="value" id="rvSetup">—</span></div>
-        <div class="summary-row total"><span class="label">Amount due today</span><span class="value" id="rvDueToday">—</span></div>
-        <div class="summary-row"><span class="label">Next billing date</span><span class="value" id="rvNextBilling">—</span></div>
-        <div class="summary-row"><span class="label">Future monthly billing</span><span class="value" id="rvFutureMonthly">—</span></div>
-        <label class="checkbox-row">
-          <input type="checkbox" id="tosCheck" />
-          <span>I accept the <a href="#" onclick="return false;">Terms of Service</a>, <a href="#" onclick="return false;">Privacy Policy</a>, and <a href="#" onclick="return false;">Subscription/Billing Terms</a>.</span>
-        </label>
-        <div class="wizard-actions"><button class="btn" onclick="goStep(2)">Back</button><button class="btn btn-primary" id="payBtn" onclick="submitSignup()">Continue to Secure Payment</button></div>
-      </div>
-
-      <!-- Step 4: Success / confirming -->
-      <div class="wiz-panel" data-panel="4" style="display:none;text-align:center;">
-        <h2 id="doneHeading">Confirming your payment…</h2>
-        <p class="sub" id="doneSub">Hang on while we verify your payment with Stripe.</p>
-      </div>
+    <div class="wizard-card" style="text-align:center;padding:48px 32px;">
+      <h2 style="margin-bottom:8px;">Sign-ups are coming soon</h2>
+      <p class="sub" style="max-width:440px;margin:0 auto 24px;">
+        Twanova is putting the finishing touches on self-serve plans. We're not accepting new agency
+        sign-ups just yet — check back soon, or reach out below and we'll let you know the moment it's ready.
+      </p>
+      <a class="btn btn-primary" href="/pricing.html#enterpriseCard">Contact us instead</a>
     </div>
   </div>
 </div>
-
-<script>
-const params = new URLSearchParams(location.search);
-let plans = [];
-let selectedPlan = null;
-
-async function loadPlan() {
-  const res = await fetch('/api/signup/plans');
-  const data = await res.json();
-  plans = data.plans;
-  const key = params.get('plan') || 'growth';
-  selectedPlan = plans.find((p) => p.key === key) || plans[0];
-  document.getElementById('selectedPlanLabel').textContent = selectedPlan.name + ' — $' + selectedPlan.priceDisplay + '/mo';
-}
-
-// If Stripe just redirected us back here with ?session_id=..., verify the
-// payment server-side and finish creating the agency. If it redirected
-// back with ?canceled=1, just let the person try again from Review & Pay.
-async function handleReturnFromStripe() {
-  const sessionId = params.get('session_id');
-  if (sessionId) {
-    goStep(4);
-    const res = await fetch('/api/signup/confirm?session_id=' + encodeURIComponent(sessionId));
-    const data = await res.json();
-    if (!res.ok) {
-      document.getElementById('doneHeading').textContent = 'We could not confirm your payment';
-      document.getElementById('doneSub').textContent = data.error || 'Please contact Only A Job for help, or go back and try again.';
-      return true;
-    }
-    document.getElementById('doneHeading').textContent = "You're in! 🎉";
-    document.getElementById('doneSub').textContent = 'Your agency account has been created. Redirecting to your dashboard…';
-    setTimeout(() => { window.location.href = data.redirectTo || '/dashboard/manager'; }, 1400);
-    return true;
-  }
-  if (params.get('canceled')) {
-    goStep(3);
-    document.getElementById('wizErr').textContent = 'Payment was canceled — you can try again whenever you\'re ready.';
-    return true;
-  }
-  return false;
-}
-
-(async () => {
-  await loadPlan();
-  await handleReturnFromStripe();
-})();
-
-function goStep(n) {
-  document.querySelectorAll('.wiz-panel').forEach((p) => p.style.display = 'none');
-  document.querySelector('.wiz-panel[data-panel="' + n + '"]').style.display = 'block';
-  document.querySelectorAll('.wizard-step').forEach((s) => {
-    const step = Number(s.dataset.step);
-    s.classList.toggle('active', step === n);
-    s.classList.toggle('done', step < n);
-  });
-  document.getElementById('wizErr').textContent = '';
-  if (n === 3) renderReview();
-}
-
-function renderReview() {
-  document.getElementById('rvPlan').textContent = selectedPlan.name;
-  document.getElementById('rvMonthly').textContent = '$' + selectedPlan.priceDisplay + '/mo';
-  document.getElementById('rvSetup').textContent = '$' + selectedPlan.setupFeeDisplay;
-  const due = (Number(selectedPlan.priceCents) + Number(selectedPlan.setupFeeCents)) / 100;
-  document.getElementById('rvDueToday').textContent = '$' + due.toFixed(2);
-  const next = new Date();
-  next.setMonth(next.getMonth() + 1);
-  document.getElementById('rvNextBilling').textContent = next.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  document.getElementById('rvFutureMonthly').textContent = '$' + selectedPlan.priceDisplay + '/mo starting ' + next.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-async function submitSignup() {
-  const errEl = document.getElementById('wizErr');
-  errEl.textContent = '';
-  if (!document.getElementById('tosCheck').checked) {
-    errEl.textContent = 'You must accept the Terms of Service, Privacy Policy, and Subscription/Billing Terms.';
-    return;
-  }
-  const payload = {
-    companyName: document.getElementById('companyName').value.trim(),
-    officeName: document.getElementById('officeName').value.trim(),
-    officeAddress: document.getElementById('officeAddress').value.trim(),
-    contactName: document.getElementById('contactName').value.trim(),
-    contactEmail: document.getElementById('contactEmail').value.trim(),
-    contactPhone: document.getElementById('contactPhone').value.trim(),
-    password: document.getElementById('password').value,
-    plan: selectedPlan.key,
-    tosAccepted: true,
-  };
-  if (!payload.companyName || !payload.contactName || !payload.contactEmail || !payload.password) {
-    errEl.textContent = 'Please complete the Company and Contact steps first.';
-    return;
-  }
-
-  const btn = document.getElementById('payBtn');
-  btn.disabled = true;
-  btn.textContent = 'Redirecting to Stripe…';
-  try {
-    const res = await fetch('/api/signup/agency', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) { errEl.textContent = data.error || 'Signup failed'; btn.disabled = false; btn.textContent = 'Continue to Secure Payment'; return; }
-    // Hand off to Stripe's own hosted Checkout page — the card is entered
-    // there, never on this page.
-    window.location.href = data.checkoutUrl;
-  } catch (err) {
-    errEl.textContent = 'Could not reach the server.';
-    btn.disabled = false;
-    btn.textContent = 'Continue to Secure Payment';
-  }
-}
-</script>
 </body>
 </html>

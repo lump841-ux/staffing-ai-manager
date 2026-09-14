@@ -2,14 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Super Admin — Only A Job Platform</title>
+<title>Super Admin — Twanova Platform</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
 </head>
 <body>
 <div class="app-shell">
   <div class="app-nav">
-    <div class="brand">Only A Job<br/><span style="font-weight:400;font-size:12px;color:var(--ink-3);">Platform Super Admin</span></div>
+    <div class="brand">Twanova<br/><span style="font-weight:400;font-size:12px;color:var(--ink-3);">Platform Super Admin</span></div>
     <div class="nav-item active" data-view="overview">Overview</div>
     <div class="nav-item" data-view="agencies">Agencies</div>
     <div class="nav-item" data-view="leads">Enterprise Leads</div>
@@ -21,7 +25,7 @@
 
   <div class="app-main">
     <div id="view-overview" class="view">
-      <div class="page-header"><div><h1>Platform overview</h1><div class="sub">Across every staffing agency on Only A Job</div></div></div>
+      <div class="page-header"><div><h1>Platform overview</h1><div class="sub">Across every staffing agency on Twanova</div></div></div>
       <div class="kpi-grid" id="overviewKpis"></div>
     </div>
 
@@ -29,7 +33,7 @@
       <div class="page-header"><div><h1>Agencies</h1><div class="sub">Every staffing agency account</div></div></div>
       <div class="panel">
         <table class="data-table">
-          <thead><tr><th>Agency</th><th>Plan</th><th>Price</th><th>Status</th><th>Founding</th><th>Offices</th><th>Users</th><th></th></tr></thead>
+          <thead><tr><th>Agency</th><th>Plan</th><th>Price</th><th>Status</th><th>Offices</th><th>Users</th><th></th></tr></thead>
           <tbody id="agenciesTbody"></tbody>
         </table>
       </div>
@@ -80,7 +84,6 @@ async function loadOverview() {
     { label: 'Total agencies', value: d.totalAgencies },
     { label: 'Active subscriptions', value: d.activeSubscriptions, cls: 'good' },
     { label: 'MRR', value: '$' + d.mrrDisplay },
-    { label: 'Founding partners', value: d.foundingPartners + ' / ' + d.foundingPartnerLimit, cls: d.foundingSlotsRemaining === 0 ? 'warn' : '' },
     { label: 'New signups (30d)', value: d.newSignups30d },
     { label: 'Canceled', value: d.canceled, cls: d.canceled ? 'bad' : '' },
     { label: 'Past due', value: d.pastDue, cls: d.pastDue ? 'bad' : 'good' },
@@ -95,13 +98,13 @@ let agenciesCache = [];
 async function loadAgencies() {
   const res = await fetch('/api/platform-admin/agencies');
   agenciesCache = await res.json();
+  const PLAN_NAMES = { founding: 'Starter', growth: 'Growth', professional: 'Professional', enterprise: 'Enterprise' };
   document.getElementById('agenciesTbody').innerHTML = agenciesCache.map((a) => `
     <tr>
       <td>${a.name}</td>
-      <td>${a.plan}</td>
+      <td>${PLAN_NAMES[a.plan] || a.plan}</td>
       <td>$${(a.plan_price_cents / 100).toFixed(2)}</td>
       <td><span class="pill ${{active:'green',trialing:'amber',past_due:'red',canceled:'gray',suspended:'red'}[a.billing_status] || 'gray'}">${a.billing_status}</span></td>
-      <td>${a.is_founding_partner ? '🏆' : ''}</td>
       <td>${a.office_count}</td>
       <td>${a.user_count}</td>
       <td><button class="btn btn-sm" onclick="openAgency(${a.id})">Manage</button></td>
@@ -118,25 +121,28 @@ async function openAgency(id) {
   panel.innerHTML = `
     <p class="panel-title">${org.name}</p>
     <div class="kpi-grid">
-      <div class="kpi-card"><p class="kpi-label">Plan</p><p class="kpi-value">${org.plan}</p></div>
+      <div class="kpi-card"><p class="kpi-label">Plan</p><p class="kpi-value">${{founding:'Starter',growth:'Growth',professional:'Professional',enterprise:'Enterprise'}[org.plan] || org.plan}</p></div>
       <div class="kpi-card"><p class="kpi-label">Monthly price</p><p class="kpi-value">$${(org.plan_price_cents/100).toFixed(2)}</p></div>
       <div class="kpi-card"><p class="kpi-label">Status</p><p class="kpi-value">${org.billing_status}</p></div>
       <div class="kpi-card"><p class="kpi-label">Setup fee</p><p class="kpi-value">${org.setup_fee_waived ? 'Waived' : (org.setup_fee_paid ? 'Paid' : 'Unpaid')}</p></div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
       <button class="btn btn-sm" onclick="waiveFee(${org.id})" ${org.setup_fee_waived ? 'disabled' : ''}>Waive setup fee</button>
-      <button class="btn btn-sm" onclick="toggleFounding(${org.id}, ${!org.is_founding_partner})">${org.is_founding_partner ? 'Remove Founding Partner' : 'Designate Founding Partner'}</button>
       <button class="btn btn-sm" onclick="applyPromo(${org.id})">Apply promo pricing</button>
       <select id="planSelect${org.id}" onchange="changePlan(${org.id}, this.value)">
         <option value="">Change plan…</option>
-        <option value="founding">Founding — $299</option>
+        <option value="founding">Starter — $299</option>
         <option value="growth">Growth — $499</option>
         <option value="professional">Professional — $699</option>
       </select>
       ${org.billing_status === 'suspended'
         ? `<button class="btn btn-sm" onclick="setStatus(${org.id}, 'active')">Reactivate</button>`
         : `<button class="btn btn-sm" onclick="setStatus(${org.id}, 'suspended')">Suspend</button>`}
+      <button class="btn btn-sm" onclick="setTempChat(${org.id}, ${!org.temp_chat_enabled})">
+        ${org.temp_chat_enabled ? 'Disable Temp Chat' : 'Enable Temp Chat'}
+      </button>
     </div>
+    <p class="section-label" style="margin-top:-8px;">Temp Chat (paid upgrade): <span class="pill ${org.temp_chat_enabled ? 'green' : 'gray'}">${org.temp_chat_enabled ? 'Enabled' : 'Disabled'}</span></p>
     <p class="section-label">Users by role</p>
     <p style="font-size:14px;margin:0 0 16px;">${d.userCountsByRole.map((r) => r.role + ': ' + r.n).join(' · ') || 'None yet'} · ${d.officeCount} office(s)</p>
     <p class="section-label">Billing history</p>
@@ -150,19 +156,17 @@ async function waiveFee(id) {
   await fetch('/api/platform-admin/agencies/' + id + '/waive-setup-fee', { method: 'POST' });
   openAgency(id);
 }
-async function toggleFounding(id, value) {
-  const res = await fetch('/api/platform-admin/agencies/' + id + '/founding', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }),
-  });
-  const data = await res.json();
-  if (!res.ok) { alert(data.error); return; }
-  openAgency(id);
-}
 async function applyPromo(id) {
   const val = prompt('New monthly price in dollars (e.g. 199):');
   if (!val) return;
   await fetch('/api/platform-admin/agencies/' + id + '/promo-price', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priceCents: Math.round(Number(val) * 100) }),
+  });
+  openAgency(id);
+}
+async function setTempChat(id, enabled) {
+  await fetch('/api/platform-admin/agencies/' + id + '/temp-chat', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }),
   });
   openAgency(id);
 }

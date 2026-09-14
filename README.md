@@ -1,4 +1,4 @@
-# Only A Job — Staffing Agencies — local test build
+# Twanova — Staffing Solutions — local test build
 
 A working first version of the worker portal + manager command center, for your son to click through, test, and tell you what to change. It runs entirely on your machine with demo data already loaded — no database setup, no API keys, no cost.
 

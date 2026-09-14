@@ -1,4 +1,4 @@
-// Session gate for the Only A Job Super Admin area. Deliberately a totally
+// Session gate for the Twanova Super Admin area. Deliberately a totally
 // separate session key (req.session.platformAdmin) from the staffing-agency
 // session (req.session.user) used everywhere else — a platform admin
 // session can never satisfy an agency route's requireRole check, and vice

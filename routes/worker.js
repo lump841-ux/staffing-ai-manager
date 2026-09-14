@@ -1,7 +1,11 @@
-// Worker-only routes. These queries are ALWAYS scoped to req.session.user.id
-// for the worker's own data — there is no code path here that can read
-// another worker's numbers or any manager-only table (worker_time_entries
-// is never imported or queried in this file at all).
+// Worker-only routes. NOTE: "worker" here is the agency's own recruiter /
+// staffing-coordinator role (daily numbers: calls made, placements, etc.)
+// — NOT a field/temp worker placed at a client job site. That's a
+// completely separate role and portal; see routes/field.js.
+// These queries are ALWAYS scoped to req.session.user.id for the worker's
+// own data — there is no code path here that can read another worker's
+// numbers or any manager-only table (worker_time_entries is never
+// imported or queried in this file at all).
 const express = require('express');
 const db = require('../services/db');
 const reporting = require('../services/reporting');
@@ -351,5 +355,6 @@ router.post('/break-end', async (req, res) => {
   if (!rows.length) return res.status(400).json({ error: 'You are not currently on a break.' });
   res.json({ ok: true, breakEntry: rows[0] });
 });
+
 
 module.exports = router;

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Today's Workforce — Client Portal — Twanova</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
+</head>
+<body>
+<div class="worker-shell">
+  <div class="worker-hero-topband">
+    <div class="brand-lockup">
+      <img src="/worker/brand-logo-full.png" alt="Twanova — Staffing Solutions" />
+    </div>
+  </div>
+  <div class="worker-hero">
+    <div class="worker-hero-row">
+      <div>
+        <div class="who" id="whoName">—</div>
+        <div class="date" id="whoDate"></div>
+      </div>
+      <button class="btn btn-sm" id="logoutBtn" style="margin-left:auto;">Sign out</button>
+    </div>
+  </div>
+
+  <div class="worker-body">
+    <div class="panel">
+      <p class="panel-title">Today's temp workforce</p>
+      <input type="date" id="dateFilter" style="margin-bottom:12px;" />
+      <div id="workforceList"><p class="empty">Loading…</p></div>
+    </div>
+
+    <div class="panel" id="assignmentDetailPanel" style="display:none;">
+      <p class="panel-title" id="assignmentDetailTitle"></p>
+      <div id="assignmentDetailSummary"></div>
+      <div style="margin-top:12px;">
+        <button class="btn btn-sm" id="checkOnBtn">ARE YOU COMING? (check on worker)</button>
+        <button class="btn btn-sm" id="messageBtn">Send a message</button>
+      </div>
+      <div id="messageForm" style="display:none;margin-top:10px;">
+        <div class="field"><label>Message to worker and agency</label><textarea id="messageBody" rows="3"></textarea></div>
+        <button class="btn btn-primary btn-sm" id="sendMessageBtn">Send</button>
+      </div>
+      <p class="error-msg" id="detailErr"></p>
+      <p class="section-label" style="margin-top:16px;">Communication Record</p>
+      <div id="assignmentDetailEvents"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let myOrgId = null;
+let currentAssignmentId = null;
+
+function fmtAssignTime(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const d = new Date(); d.setHours(h, m || 0, 0, 0);
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+async function loadMe() {
+  const res = await fetch('/api/client/me');
+  if (!res.ok) { window.location.href = '/client/login.html'; return; }
+  const me = await res.json();
+  document.getElementById('whoName').textContent = `${me.name} — ${me.clientCompanyName}`;
+  document.getElementById('whoDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/api/client/logout', { method: 'POST' });
+  window.location.href = '/client/login.html';
+});
+
+const STATUS_LABEL = {
+  scheduled: 'Scheduled', confirmed: 'Confirmed', on_my_way: 'On my way',
+  running_late: 'Running late', arrived: 'Arrived on site', in_progress: 'In progress',
+  leaving_early_requested: 'Leave-early requested', leaving_early_approved: 'Leaving early — approved',
+  absent: 'Reported absent', possible_no_show: 'Possible no-show', no_show: 'No-show',
+  shift_complete: 'Shift complete', cancelled: 'Cancelled',
+};
+const STATUS_PILL_CLASS = {
+  on_my_way: 'amber', running_late: 'amber', arrived: 'green', in_progress: 'green',
+  absent: 'red', possible_no_show: 'red', no_show: 'red', cancelled: 'gray',
+  shift_complete: 'green', leaving_early_requested: 'amber', scheduled: 'gray', confirmed: 'gray',
+};
+
+async function loadWorkforce() {
+  const date = document.getElementById('dateFilter').value;
+  const qs = date ? '?date=' + date : '';
+  const res = await fetch('/api/client/today' + qs);
+  const data = await res.json();
+  if (!date) document.getElementById('dateFilter').value = data.date;
+  const el = document.getElementById('workforceList');
+  el.innerHTML = data.assignments.length ? data.assignments.map((a) => `
+    <div class="discrepancy-row">
+      <div>
+        <div class="who">${a.worker_name}${a.department ? ' — ' + a.department : ''}</div>
+        <div class="why">${a.client_location_name ? a.client_location_name + ' &middot; ' : ''}${fmtAssignTime(a.start_time)} – ${fmtAssignTime(a.end_time)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="pill ${STATUS_PILL_CLASS[a.status] || 'gray'}">${STATUS_LABEL[a.status] || a.status}</span>
+        <button class="btn btn-sm" onclick="openAssignmentDetail(${a.id})">View</button>
+      </div>
+    </div>`).join('') : '<p class="empty">No temp workers scheduled for this date.</p>';
+}
+document.getElementById('dateFilter').addEventListener('change', loadWorkforce);
+
+async function openAssignmentDetail(id) {
+  currentAssignmentId = id;
+  const res = await fetch('/api/client/assignments/' + id);
+  const data = await res.json();
+  const a = data.assignment;
+  document.getElementById('assignmentDetailPanel').style.display = 'block';
+  document.getElementById('assignmentDetailTitle').textContent = `${a.worker_name}${a.department ? ' — ' + a.department : ''}`;
+  document.getElementById('assignmentDetailSummary').innerHTML = `
+    <div class="why">${a.client_location_name ? 'Location: ' + a.client_location_name + '<br/>' : ''}Shift: ${fmtAssignTime(a.start_time)} – ${fmtAssignTime(a.end_time)}<br/>
+    Status: <span class="pill ${STATUS_PILL_CLASS[a.status] || 'gray'}">${STATUS_LABEL[a.status] || a.status}</span></div>`;
+  document.getElementById('messageForm').style.display = 'none';
+  document.getElementById('detailErr').textContent = '';
+  renderClientEvents(data.events);
+  document.getElementById('assignmentDetailPanel').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderClientEvents(events) {
+  const el = document.getElementById('assignmentDetailEvents');
+  if (!events.length) { el.innerHTML = '<p class="empty">No activity yet.</p>'; return; }
+  const EVENT_STATUS_PILL = { delivered: 'gray', viewed: 'amber', acknowledged: 'amber', in_progress: 'amber', resolved: 'green', escalated: 'red' };
+  el.innerHTML = events.slice().reverse().map((e) => {
+    const when = new Date(e.created_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
+    const ackLine = e.acknowledgments && e.acknowledgments.length ? e.acknowledgments.map((ak) => `${ak.actor_name || ak.actor_type}: ${ak.action}`).join(' &middot; ') : '';
+    const actions = e.status !== 'resolved' ? `<button class="btn btn-sm" onclick="ackClientEvent(${e.id})">Acknowledge / Resolved</button>` : '';
+    return `<div class="discrepancy-row" style="display:block;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div><div class="who">${e.summary}</div><div class="why">${when}${e.details ? '<br/>' + e.details : ''}${ackLine ? '<br/>' + ackLine : ''}</div></div>
+        <span class="pill ${EVENT_STATUS_PILL[e.status] || 'gray'}">${(e.status || '').replace(/_/g, ' ')}</span>
+      </div>
+      ${actions ? `<div class="discrepancy-actions">${actions}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function ackClientEvent(eventId) {
+  await fetch('/api/client/events/' + eventId + '/acknowledge', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'resolved' }),
+  });
+  openAssignmentDetail(currentAssignmentId);
+}
+
+document.getElementById('checkOnBtn').addEventListener('click', async () => {
+  if (!currentAssignmentId) return;
+  const errEl = document.getElementById('detailErr');
+  errEl.textContent = '';
+  const res = await fetch('/api/client/assignments/' + currentAssignmentId + '/check-on', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Could not send check-on'; return; }
+  openAssignmentDetail(currentAssignmentId);
+});
+
+document.getElementById('messageBtn').addEventListener('click', () => {
+  const f = document.getElementById('messageForm');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('sendMessageBtn').addEventListener('click', async () => {
+  if (!currentAssignmentId) return;
+  const errEl = document.getElementById('detailErr');
+  errEl.textContent = '';
+  const body = document.getElementById('messageBody').value;
+  if (!body.trim()) { errEl.textContent = 'Enter a message.'; return; }
+  const res = await fetch('/api/client/assignments/' + currentAssignmentId + '/message', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
+  });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Could not send message'; return; }
+  document.getElementById('messageBody').value = '';
+  document.getElementById('messageForm').style.display = 'none';
+  openAssignmentDetail(currentAssignmentId);
+});
+
+loadMe();
+loadWorkforce();
+</script>
+</body>
+</html>

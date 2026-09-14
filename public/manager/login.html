@@ -2,21 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Manager sign in — Only A Job | Staffing Agencies</title>
+<title>Lead sign in — Twanova | Staffing Solutions</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
 </head>
 <body>
 <div class="auth-shell">
   <div class="auth-card">
     <div class="auth-brand-lockup">
-      <img src="/manager/brand-logo.png" alt="Only A Job" />
-      <div class="brand-text">
-        <span class="brand-name">Only A Job</span>
-        <span class="brand-sub">Staffing Agencies</span>
-      </div>
+      <img src="/manager/brand-logo-full.png" alt="Twanova — Staffing Solutions" style="height:40px;width:auto;" />
     </div>
-    <div class="auth-brand">Manager Command Center</div>
+    <div class="auth-brand">Lead Command Center</div>
     <h1>Sign in</h1>
     <p class="sub">Your branch, at a glance.</p>
     <p class="error-msg" id="err"></p>
@@ -32,8 +32,9 @@
       <button class="btn btn-primary btn-block" type="submit">Sign in</button>
     </form>
     <div class="demo-hint">
-      Demo manager login is pre-filled above.<br /><br />
-      Worker sign in is at <a href="/worker/login.html">/worker/login.html</a>.
+      Demo lead login is pre-filled above.<br /><br />
+      Recruiter sign in is at <a href="/worker/login.html">/worker/login.html</a>.
+      Temp sign in is at <a href="/field/login.html">/field/login.html</a>.
     </div>
   </div>
 </div>
@@ -51,7 +52,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Sign in failed'; return; }
-    if (data.user.role !== 'manager' && data.user.role !== 'owner') { errEl.textContent = 'This account is not a manager account.'; return; }
+    if (data.user.role !== 'manager' && data.user.role !== 'owner') { errEl.textContent = 'This account is not a lead account.'; return; }
     window.location.href = '/dashboard/manager';
   } catch (err) {
     errEl.textContent = 'Could not reach the server.';

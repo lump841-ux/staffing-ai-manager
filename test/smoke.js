@@ -78,8 +78,12 @@ async function main() {
     const managerCookie = getCookie(res);
 
     res = await request(port, 'POST', '/api/auth/login', { email: 'sarah.chen@summitstaffing.demo', password: 'worker123' });
-    ok(res.status === 200 && res.json.user.role === 'worker', 'Worker logs in successfully');
+    ok(res.status === 200 && res.json.user.role === 'worker', 'Worker (recruiter) logs in successfully');
     const workerCookie = getCookie(res);
+
+    res = await request(port, 'POST', '/api/auth/login', { email: 'marcus.webb@summitstaffing.demo', password: 'field123' });
+    ok(res.status === 200 && res.json.user.role === 'field_worker', 'Field worker logs in successfully, separate account type from the recruiter worker');
+    const fieldWorkerCookie = getCookie(res);
 
     res = await request(port, 'GET', '/api/manager/today', null, workerCookie);
     ok(res.status === 403, 'Worker is forbidden from manager/today');
@@ -222,12 +226,197 @@ async function main() {
     ok(Array.isArray(clockEntryWithBreaks.breaks) && clockEntryWithBreaks.breaks.length === 2, 'Both breaks appear nested under the clock entry in work history');
     ok(clockEntryWithBreaks.breaks.every((b) => !!b.break_end_at), 'Clocking out auto-closed the dangling open break');
 
+    console.log('\n── Recruiter vs. field worker: account types never cross over ──');
+    res = await request(port, 'GET', '/api/field/assignment/today', null, workerCookie);
+    ok(res.status === 403, 'A recruiter (worker role) is forbidden from the field-worker assignment API');
+    res = await request(port, 'GET', '/api/worker/today', null, fieldWorkerCookie);
+    ok(res.status === 403, 'A field worker is forbidden from the recruiter daily-numbers API');
+
+    console.log('\n── ACN: field worker sees today\'s seeded assignment ──');
+    res = await request(port, 'GET', '/api/field/assignment/today', null, fieldWorkerCookie);
+    ok(res.status === 200 && res.json.assignment && res.json.assignment.client_company_name === 'Meridian Distribution Center', "Marcus Webb's Today's Assignment shows the seeded Meridian placement");
+    const assignmentId = res.json.assignment.id;
+    ok(res.json.assignment.status === 'scheduled', 'Seeded assignment starts as scheduled');
+
+    console.log('\n── ACN: full workflow loop (spec §34) ──');
+    res = await request(port, 'POST', `/api/field/assignment/${assignmentId}/status`, { status: 'on_my_way' }, fieldWorkerCookie);
+    ok(res.status === 200 && res.json.event.status === 'delivered', 'Field worker confirms ON MY WAY, creating a delivered event');
+
+    res = await request(port, 'POST', '/api/client/login', { email: 'supervisor@meridiandc.demo', password: 'client123' });
+    ok(res.status === 200 && res.json.contact.clientCompanyName === 'Meridian Distribution Center', 'Client supervisor logs in to their own portal');
+    const clientCookie = getCookie(res);
+
+    res = await request(port, 'GET', '/api/client/today', null, clientCookie);
+    ok(res.status === 200 && res.json.assignments.some((a) => a.id === assignmentId && a.status === 'on_my_way'), "Client supervisor sees Marcus Webb's status live, without needing a manager relay");
+
+    res = await request(port, 'POST', `/api/field/assignment/${assignmentId}/late`, { minutes: 15, message: 'Traffic on the interstate' }, fieldWorkerCookie);
+    ok(res.status === 200 && res.json.event.event_type === 'running_late', 'Field worker reports RUNNING LATE with a preset minute option');
+    const lateEventId = res.json.event.id;
+    ok(res.json.recipients.some((r) => r.type === 'client_contact') && res.json.recipients.some((r) => r.type === 'agency_user'), 'Late notice automatically routes to both the client supervisor and the agency contact — field worker never picks recipients');
+
+    res = await request(port, 'GET', '/api/manager/attention', null, managerCookie);
+    ok(res.status === 200 && res.json.needsAttention.some((e) => e.id === lateEventId), 'Manager\'s "Needs Attention" screen surfaces the late notice (not an inbox — a counts-and-cards feed)');
+    ok(res.json.runningLate >= 1, 'Attention KPI counts the running-late assignment');
+
+    res = await request(port, 'GET', `/api/client/assignments/${assignmentId}`, null, clientCookie);
+    ok(res.status === 200 && res.json.events.some((e) => e.id === lateEventId), 'Client supervisor sees the late notice on the assignment record');
+
+    res = await request(port, 'POST', `/api/client/events/${lateEventId}/acknowledge`, { action: 'acknowledged' }, clientCookie);
+    ok(res.status === 200, 'Client supervisor acknowledges the late notice');
+
+    res = await request(port, 'POST', `/api/manager/events/${lateEventId}/acknowledge`, { action: 'resolved' }, managerCookie);
+    ok(res.status === 200, 'Agency marks the late notice resolved');
+
+    res = await request(port, 'GET', `/api/field/assignment/${assignmentId}`, null, fieldWorkerCookie);
+    const lateEventAfter = res.json.events.find((e) => e.id === lateEventId);
+    ok(lateEventAfter && lateEventAfter.status === 'resolved', 'Field worker sees the acknowledgment/resolution on their own Communication Record');
+    ok(lateEventAfter.acknowledgments.some((a) => a.actor_type === 'client_contact' && a.action === 'acknowledged'), 'Full timestamped chain (client ack) is preserved in the event history');
+    ok(lateEventAfter.acknowledgments.some((a) => a.actor_type === 'agency_user' && a.action === 'resolved'), 'Full timestamped chain (agency resolve) is preserved in the event history');
+
+    console.log('\n── ACN: contact routing (field worker never picks who to contact) ──');
+    res = await request(port, 'GET', '/api/field/agency-contact', null, fieldWorkerCookie);
+    ok(res.status === 200 && res.json.contact && !!res.json.contact.name, 'Field worker\'s "Contact My Staffing Agency" resolves to a real person automatically, with no channel picker');
+
+    console.log('\n── ACN: time issue never touches payroll records ──');
+    res = await request(port, 'POST', `/api/field/assignment/${assignmentId}/time-issue`, { issueType: 'clock_in_incorrect', explanation: 'Clocked in but system shows nothing' }, fieldWorkerCookie);
+    ok(res.status === 200 && res.json.event.visibility === 'agency_client', 'Time/punch issue creates a reviewable event (agency + client), never an automatic payroll change');
+
+    console.log('\n── ACN: workplace issue privacy (spec §13) ──');
+    res = await request(port, 'POST', `/api/field/assignment/${assignmentId}/workplace-issue`, { category: 'harassment_behavior', explanation: 'Sensitive report — should stay private' }, fieldWorkerCookie);
+    ok(res.status === 200 && res.json.event.visibility === 'worker_agency', 'Harassment/behavior category is private worker<->agency by default');
+    const privateEventId = res.json.event.id;
+
+    res = await request(port, 'GET', `/api/client/assignments/${assignmentId}`, null, clientCookie);
+    ok(!res.json.events.some((e) => e.id === privateEventId), 'Client portal never receives the private worker<->agency event, even when reading the same assignment');
+
+    res = await request(port, 'GET', `/api/manager/assignments/${assignmentId}`, null, managerCookie);
+    ok(res.json.events.some((e) => e.id === privateEventId), 'Agency (manager) does see the private workplace issue');
+
+    console.log('\n── ACN: emergency disclaimer (spec §12) ──');
+    res = await request(port, 'POST', `/api/field/assignment/${assignmentId}/emergency`, { category: 'unsafe_situation', explanation: 'Test emergency event' }, fieldWorkerCookie);
+    ok(res.status === 200 && res.json.event.severity === 'emergency', 'Emergency report is created with emergency severity');
+    ok(typeof res.json.disclaimer === 'string' && res.json.disclaimer.includes('911'), 'Emergency response always carries the 911/emergency-services disclaimer');
+
+    console.log('\n── ACN: leaving-early approve/deny flow ──');
+    res = await request(port, 'POST', `/api/field/assignment/${assignmentId}/leaving-early`, { departureTime: '14:00', message: 'Doctor appointment' }, fieldWorkerCookie);
+    ok(res.status === 200, 'Field worker requests to leave early');
+
+    res = await request(port, 'POST', `/api/manager/assignments/${assignmentId}/leaving-early-response`, { decision: 'approved', note: 'Approved, thanks for the heads up' }, managerCookie);
+    ok(res.status === 200, 'Manager can approve a leave-early request');
+
+    res = await request(port, 'GET', `/api/field/assignment/${assignmentId}`, null, fieldWorkerCookie);
+    ok(res.json.assignment.status === 'leaving_early_approved', "Assignment status reflects the manager's approval");
+
+    console.log('\n── ACN: manager creates a brand-new assignment end-to-end ──');
+    res = await request(port, 'GET', '/api/manager/workers', null, managerCookie);
+    const davidId = res.json.find((w) => w.name === 'David Kim').id;
+
+    res = await request(port, 'POST', '/api/manager/field-workers-new', { name: 'Test Field Worker', email: 'test.fieldworker@summitstaffing.demo', phone: '555-0100', password: 'field123' }, managerCookie);
+    ok(res.status === 200 && !!res.json.id, 'Manager can create a new field worker account');
+    const newFieldWorkerId = res.json.id;
+
+    res = await request(port, 'GET', '/api/manager/field-workers', null, managerCookie);
+    ok(res.status === 200 && res.json.some((w) => w.id === newFieldWorkerId), 'New field worker shows up in the field worker roster');
+
+    res = await request(port, 'POST', '/api/manager/client-companies', { name: 'Test Client Co', notes: 'Created by smoke test' }, managerCookie);
+    ok(res.status === 200 && !!res.json.id, 'Manager can create a new client company');
+    const newClientId = res.json.id;
+
+    console.log('\n── Client billing — owner-only visibility ──');
+    res = await request(port, 'PUT', `/api/manager/client-companies/${newClientId}/billing`, { billRateHourly: 28.5, payRateHourly: 18, contractValue: 50000, billingNotes: 'Net 30' }, ownerCookie);
+    ok(res.status === 200 && Number(res.json.bill_rate_hourly) === 28.5, 'Owner can set client billing rates');
+
+    res = await request(port, 'PUT', `/api/manager/client-companies/${newClientId}/billing`, { billRateHourly: 99 }, managerCookie);
+    ok(res.status === 403, 'Manager is blocked from editing client billing rates');
+
+    res = await request(port, 'GET', `/api/manager/client-companies/${newClientId}`, null, managerCookie);
+    ok(res.status === 200 && res.json.bill_rate_hourly === undefined && res.json.pay_rate_hourly === undefined, "Manager's view of the client company never includes billing fields");
+
+    res = await request(port, 'GET', '/api/manager/client-companies', null, managerCookie);
+    ok(res.status === 200 && res.json.every((c) => c.bill_rate_hourly === undefined), 'Manager client-company list is scrubbed of billing fields too');
+
+    res = await request(port, 'GET', `/api/manager/client-companies/${newClientId}`, null, ownerCookie);
+    ok(res.status === 200 && Number(res.json.bill_rate_hourly) === 28.5 && res.json.billing_notes === 'Net 30', 'Owner can see the client billing rates they set');
+
+    res = await request(port, 'POST', `/api/manager/client-companies/${newClientId}/contacts`, { name: 'Test Contact', email: 'testcontact@testclientco.demo', password: 'contact123', role: 'client_supervisor' }, managerCookie);
+    ok(res.status === 200, 'Manager can add a client contact login');
+
+    res = await request(port, 'POST', '/api/manager/assignments', {
+      workerId: davidId, clientCompanyId: newClientId, shiftDate: (new Date(Date.now() + 24 * 60 * 60 * 1000)).toISOString().slice(0, 10), startTime: '09:00', endTime: '17:00',
+    }, managerCookie);
+    ok(res.status === 400, 'Manager cannot assign a shift to a recruiter (David Kim) — workerId must be an actual field worker');
+
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    res = await request(port, 'POST', '/api/manager/assignments', {
+      workerId: newFieldWorkerId, clientCompanyId: newClientId, shiftDate: tomorrow, startTime: '09:00', endTime: '17:00',
+    }, managerCookie);
+    ok(res.status === 200 && res.json.client_company_name === 'Test Client Co', 'Manager creates a new assignment for the new field worker');
+    const newAssignmentId = res.json.id;
+
+    res = await request(port, 'POST', '/api/auth/login', { email: 'test.fieldworker@summitstaffing.demo', password: 'field123' });
+    const newFieldWorkerCookie = getCookie(res);
+    res = await request(port, 'GET', `/api/field/assignment/${newAssignmentId}`, null, newFieldWorkerCookie);
+    ok(res.status === 200 && res.json.assignment.id === newAssignmentId, 'The new field worker can see the assignment the manager just created');
+
+    console.log('\n── ACN: tenant isolation on client portal ──');
+    res = await request(port, 'GET', `/api/client/assignments/${assignmentId}`, null, getCookie(await request(port, 'POST', '/api/client/login', { email: 'testcontact@testclientco.demo', password: 'contact123' })));
+    ok(res.status === 404, "A different client company's contact cannot read Meridian's assignment — cross-client isolation holds");
+
+    console.log('\n── Temp Chat (paid upgrade) gating ──');
+    // Demo/seed orgs default temp_chat_enabled = TRUE (see schema.sql), so
+    // messaging should work out of the box for Summit Staffing.
+    res = await request(port, 'POST', `/api/field/assignment/${newAssignmentId}/message`, { to: 'agency', body: 'Running a few minutes behind.' }, newFieldWorkerCookie);
+    ok(res.status === 200, 'Temp can send a free-text message when Temp Chat is enabled for the agency');
+
+    res = await request(port, 'POST', `/api/manager/assignments/${newAssignmentId}/message`, { body: 'Got it, thanks for the heads up.' }, managerCookie);
+    ok(res.status === 200, 'Lead/manager can send a free-text message back when Temp Chat is enabled');
+
+    res = await request(port, 'POST', '/api/platform-admin/login', { email: 'admin@twanova.platform', password: 'platform123' });
+    ok(res.status === 200, 'Super Admin logs in');
+    const platformAdminCookie = getCookie(res);
+
+    res = await request(port, 'GET', '/api/platform-admin/agencies', null, platformAdminCookie);
+    const summitOrgId = res.json.find((a) => a.name && a.name.includes('Summit'))?.id || res.json[0].id;
+
+    res = await request(port, 'POST', `/api/platform-admin/agencies/${summitOrgId}/temp-chat`, { enabled: false }, platformAdminCookie);
+    ok(res.status === 200 && res.json.temp_chat_enabled === false, 'Super Admin can disable Temp Chat for an agency');
+
+    res = await request(port, 'POST', `/api/field/assignment/${newAssignmentId}/message`, { to: 'agency', body: 'Anyone there?' }, newFieldWorkerCookie);
+    ok(res.status === 403, 'Temp messaging is blocked once Temp Chat is disabled for the agency');
+
+    res = await request(port, 'POST', `/api/manager/assignments/${newAssignmentId}/message`, { body: 'Still here.' }, managerCookie);
+    ok(res.status === 403, 'Lead/manager messaging is blocked once Temp Chat is disabled for the agency');
+
+    res = await request(port, 'POST', `/api/platform-admin/agencies/${summitOrgId}/temp-chat`, { enabled: true }, platformAdminCookie);
+    ok(res.status === 200 && res.json.temp_chat_enabled === true, 'Super Admin can re-enable Temp Chat for an agency');
+
+    res = await request(port, 'POST', `/api/field/assignment/${newAssignmentId}/message`, { to: 'agency', body: 'Back online.' }, newFieldWorkerCookie);
+    ok(res.status === 200, 'Temp messaging works again once Temp Chat is re-enabled');
+
     console.log('\n── Page routing / RBAC on pages ──');
     res = await request(port, 'GET', '/dashboard/manager', null, workerCookie);
     ok(res.status === 302, 'Worker hitting the manager dashboard page is redirected, not shown the page');
 
     res = await request(port, 'GET', '/dashboard/worker', null, managerCookie);
     ok(res.status === 302, 'Manager hitting the worker dashboard page is redirected, not shown the page');
+
+    res = await request(port, 'GET', '/dashboard/field', null, workerCookie);
+    ok(res.status === 302, 'A recruiter (worker role) hitting the field-worker dashboard page is redirected, not shown the page');
+
+    res = await request(port, 'GET', '/dashboard/worker', null, fieldWorkerCookie);
+    ok(res.status === 302, 'A field worker hitting the recruiter dashboard page is redirected, not shown the page');
+
+    res = await request(port, 'GET', '/dashboard/field', null, fieldWorkerCookie);
+    ok(res.status === 200, 'A signed-in field worker can load their own dashboard page');
+
+    res = await request(port, 'GET', '/dashboard/field', null, null);
+    ok(res.status === 302, 'Anonymous visitor hitting the field-worker dashboard page is redirected to field login');
+
+    res = await request(port, 'GET', '/dashboard/client', null, null);
+    ok(res.status === 302, 'Anonymous visitor hitting the client dashboard page is redirected to client login');
+
+    res = await request(port, 'GET', '/dashboard/client', null, clientCookie);
+    ok(res.status === 200, 'A signed-in client contact can load their own dashboard page');
 
   } finally {
     server.kill();

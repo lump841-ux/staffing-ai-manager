@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Recruiter sign in — Twanova | Staffing Solutions</title>
+<title>Client sign in — Twanova | Staffing Solutions</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="/styles.css" />
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
@@ -16,9 +16,9 @@
     <div class="auth-brand-lockup">
       <img src="/worker/brand-logo-full.png" alt="Twanova — Staffing Solutions" style="height:40px;width:auto;" />
     </div>
-    <div class="auth-brand">Recruiter Portal</div>
+    <div class="auth-brand">Client Company Portal</div>
     <h1>Sign in</h1>
-    <p class="sub">Submit your daily numbers and see today's progress.</p>
+    <p class="sub">See today's temp workforce and respond to what needs your attention.</p>
     <p class="error-msg" id="err"></p>
     <form id="loginForm">
       <div class="field">
@@ -32,12 +32,8 @@
       <button class="btn btn-primary btn-block" type="submit">Sign in</button>
     </form>
     <div class="demo-hint">
-      Demo recruiter logins:<br />
-      sarah.chen@summitstaffing.demo / worker123<br />
-      david.kim@summitstaffing.demo / worker123<br />
-      maria.lopez@summitstaffing.demo / worker123<br /><br />
-      Not a recruiter? Temp sign in is at <a href="/field/login.html">/field/login.html</a>.
-      Lead sign in is at <a href="/manager/login.html">/manager/login.html</a>.
+      Your staffing agency sets up your login and gives you your credentials directly —
+      there's no self sign-up here.
     </div>
   </div>
 </div>
@@ -49,14 +45,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   const errEl = document.getElementById('err');
   errEl.textContent = '';
   try {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch('/api/client/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Sign in failed'; return; }
-    if (data.user.role !== 'worker') { errEl.textContent = 'This account is not a recruiter account.'; return; }
-    window.location.href = '/dashboard/worker';
+    window.location.href = '/dashboard/client';
   } catch (err) {
     errEl.textContent = 'Could not reach the server.';
   }

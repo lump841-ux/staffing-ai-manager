@@ -21,7 +21,12 @@ CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id),
   branch_id INTEGER REFERENCES branches(id),
-  role TEXT NOT NULL CHECK (role IN ('owner','manager','worker')),
+  -- 'worker' here means a recruiter/staffing-coordinator on the agency's own
+  -- payroll (tracks calls made, placements, etc. via daily_reports).
+  -- 'field_worker' is a completely separate person: someone the agency
+  -- places at a client company's job site (the Assignment Communication
+  -- Network's "Today's Assignment" screen). Never conflate the two.
+  role TEXT NOT NULL CHECK (role IN ('owner','manager','worker','field_worker')),
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   phone TEXT,
@@ -272,6 +277,13 @@ CREATE TABLE IF NOT EXISTS pending_signups (
 
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS self_clockin_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Temp Chat is a paid upgrade: two-way messaging between a temp, their
+-- recruiter/lead, and the client company on an assignment. Off by default
+-- for brand-new agencies (see routes/signup.js) — existing/demo agencies
+-- default to TRUE here so nothing already built breaks. Only a platform
+-- Super Admin can flip this — see POST /platform-admin/agencies/:id/temp-chat.
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS temp_chat_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
 -- Worker-initiated clock in/out. Entirely separate from worker_time_entries
 -- (manager-only, payroll-facing) — this is the worker's own self-reported
 -- record, visible to the worker on their own history and readable by
@@ -295,5 +307,187 @@ CREATE TABLE IF NOT EXISTS worker_break_entries (
   worker_id INTEGER NOT NULL REFERENCES users(id),
   break_start_at TIMESTAMP NOT NULL DEFAULT NOW(),
   break_end_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════════
+-- ASSIGNMENT COMMUNICATION NETWORK
+-- Everything below is additive — no existing table is altered in a
+-- breaking way. The core idea: an "assignment" is the thing that knows
+-- who a worker is placed with (client company/location/department/
+-- shift/supervisor) and that knowledge is what drives who gets
+-- contacted for any given event. Client-side people (supervisors, HR)
+-- get their own login space — client_contacts — mirroring the
+-- platform_admins pattern already established above: a completely
+-- separate table and session key from the agency `users` table, so a
+-- client login can never satisfy an agency-role check or vice versa.
+-- ════════════════════════════════════════════════════════════════════
+
+-- Per-agency, configurable — never hard-coded (spec §9, §18).
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS no_show_grace_minutes INTEGER NOT NULL DEFAULT 20;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS escalation_minutes INTEGER NOT NULL DEFAULT 10;
+
+CREATE TABLE IF NOT EXISTS client_companies (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  name TEXT NOT NULL,
+  notes TEXT,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Financial fields — what the agency bills THIS client. Owner-only data:
+-- never returned by any query a manager-role session can reach (see
+-- routes/manager.js — these columns are stripped before the response
+-- unless req.session.user.role === 'owner'). Kept on the same row rather
+-- than a separate table so there's exactly one place ownership is
+-- enforced, not two.
+ALTER TABLE client_companies ADD COLUMN IF NOT EXISTS bill_rate_hourly NUMERIC(10,2);
+ALTER TABLE client_companies ADD COLUMN IF NOT EXISTS pay_rate_hourly NUMERIC(10,2);
+ALTER TABLE client_companies ADD COLUMN IF NOT EXISTS contract_value NUMERIC(12,2);
+ALTER TABLE client_companies ADD COLUMN IF NOT EXISTS billing_notes TEXT;
+
+CREATE TABLE IF NOT EXISTS client_locations (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  client_company_id INTEGER NOT NULL REFERENCES client_companies(id),
+  name TEXT NOT NULL,
+  address TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Separate login space for client-side people (supervisors / HR). Never
+-- joined against agency-role queries in routes/worker.js or
+-- routes/manager.js, and never able to authenticate as req.session.user.
+CREATE TABLE IF NOT EXISTS client_contacts (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  client_company_id INTEGER NOT NULL REFERENCES client_companies(id),
+  role TEXT NOT NULL DEFAULT 'client_supervisor' CHECK (role IN ('client_supervisor','client_hr')),
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  phone TEXT,
+  password_hash TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Per-agency configurable "who is the staffing contact right now" rules
+-- (spec §16 — after-hours communication). A worker never has to know who
+-- is on call — pressing "Contact my staffing agency" resolves through this
+-- table. Time-of-day only for MVP (no day-of-week granularity yet) —
+-- rows are matched by start_time <= now < end_time, in sort_order.
+CREATE TABLE IF NOT EXISTS agency_contact_rules (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  label TEXT NOT NULL,
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  contact_user_id INTEGER NOT NULL REFERENCES users(id),
+  is_emergency_contact BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- The core entity. Knows worker + client company/location/department +
+-- shift + who the supervisor and agency contact are. This is what
+-- determines "who should receive the communication" for every event
+-- below — nobody ever has to look someone up.
+CREATE TABLE IF NOT EXISTS assignments (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  worker_id INTEGER NOT NULL REFERENCES users(id),
+  client_company_id INTEGER NOT NULL REFERENCES client_companies(id),
+  client_location_id INTEGER REFERENCES client_locations(id),
+  department TEXT,
+  supervisor_contact_id INTEGER REFERENCES client_contacts(id),
+  agency_contact_user_id INTEGER REFERENCES users(id),
+  shift_date DATE NOT NULL,
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN (
+    'scheduled','confirmed','on_my_way','running_late','arrived','in_progress',
+    'leaving_early_requested','leaving_early_approved','absent',
+    'possible_no_show','no_show','shift_complete','cancelled'
+  )),
+  status_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  notes TEXT,
+  created_by_user_id INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  archived_at TIMESTAMP
+);
+
+-- A structured workforce event — NOT a chat message. Every button on the
+-- worker's Today's Assignment screen (on my way / running late / can't
+-- make it / time issue / workplace issue / emergency / leave early /
+-- shift complete) as well as a supervisor's "are you coming?" check-on
+-- and any free-text message all create one of these, so the full
+-- Communication Record (spec §20) is one query away.
+CREATE TABLE IF NOT EXISTS assignment_events (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  assignment_id INTEGER NOT NULL REFERENCES assignments(id),
+  event_type TEXT NOT NULL CHECK (event_type IN (
+    'on_my_way','running_late','absence','check_in_request','arrived',
+    'leaving_early_request','leaving_early_response','time_issue',
+    'workplace_issue','emergency','shift_complete','message',
+    'no_show_flag','status_update','need_help'
+  )),
+  severity TEXT NOT NULL DEFAULT 'normal' CHECK (severity IN ('normal','urgent','emergency')),
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN (
+    'new','delivered','viewed','acknowledged','in_progress','resolved','escalated'
+  )),
+  visibility TEXT NOT NULL DEFAULT 'shared' CHECK (visibility IN ('worker_agency','worker_client','shared','agency_client')),
+  summary TEXT NOT NULL,
+  details TEXT,
+  metadata TEXT,
+  created_by_type TEXT NOT NULL CHECK (created_by_type IN ('worker','client_contact','agency_user','system')),
+  created_by_id INTEGER,
+  created_by_name TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  escalation_tier INTEGER NOT NULL DEFAULT 0,
+  escalated_at TIMESTAMP,
+  resolved_at TIMESTAMP
+);
+
+-- Who an event was sent to, and when. Lets the worker see "your staffing
+-- agency and job supervisor have been notified" as a fact, not a promise.
+CREATE TABLE IF NOT EXISTS event_recipients (
+  id SERIAL PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES assignment_events(id),
+  recipient_type TEXT NOT NULL CHECK (recipient_type IN ('worker','client_contact','agency_user')),
+  recipient_id INTEGER NOT NULL,
+  recipient_name TEXT,
+  notified_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Delivered -> Viewed -> Acknowledged -> Resolved, per person, per event
+-- (spec §17). Multiple rows per event are expected (supervisor views,
+-- then agency acknowledges, etc).
+CREATE TABLE IF NOT EXISTS event_acknowledgments (
+  id SERIAL PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES assignment_events(id),
+  actor_type TEXT NOT NULL CHECK (actor_type IN ('worker','client_contact','agency_user')),
+  actor_id INTEGER NOT NULL,
+  actor_name TEXT,
+  action TEXT NOT NULL CHECK (action IN ('viewed','acknowledged','in_progress','resolved')),
+  note TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- In-app notification inbox, shared shape for all three audiences
+-- (worker / client_contact / agency_user), differentiated by
+-- recipient_type the same way event_recipients is.
+CREATE TABLE IF NOT EXISTS notifications (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  recipient_type TEXT NOT NULL CHECK (recipient_type IN ('worker','client_contact','agency_user')),
+  recipient_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT,
+  link TEXT,
+  event_id INTEGER REFERENCES assignment_events(id),
+  assignment_id INTEGER REFERENCES assignments(id),
+  read BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

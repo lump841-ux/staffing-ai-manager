@@ -57,21 +57,21 @@ async function run() {
   const { rows: orgCheck } = await db.query(`SELECT id FROM organizations LIMIT 1`);
   if (orgCheck.length) return; // already seeded
 
-  // This demo agency is designated the platform's first Founding Partner —
-  // $299/month locked in, $500 onboarding fee waived by the Super Admin.
+  // Demo agency on the simple Starter tier — $299/month, $500 onboarding
+  // fee waived by the Super Admin.
   const { rows: orgRows } = await db.query(
     `INSERT INTO organizations
        (name, plan, plan_price_cents, billing_status, is_founding_partner,
         setup_fee_cents, setup_fee_waived, setup_fee_paid, next_billing_date,
         payment_method_label, billing_contact_name, billing_email, signup_source)
-     VALUES ($1,'founding',29900,'active',TRUE,50000,TRUE,FALSE,$2,'Demo card ending in 4242','Jordan Rivera','owner@summitstaffing.demo','manual')
+     VALUES ($1,'founding',29900,'active',FALSE,50000,TRUE,FALSE,$2,'Demo card ending in 4242','Jordan Rivera','owner@summitstaffing.demo','manual')
      RETURNING id`,
-    ['Only A Job — Staffing Agencies', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)]
+    ['Twanova — Staffing Solutions', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)]
   );
   const orgId = orgRows[0].id;
   await db.query(
     `INSERT INTO billing_events (organization_id, type, amount_cents, description, status)
-     VALUES ($1,'waiver',0,'Founding Partner onboarding fee waived (initial demo agency)','waived')`,
+     VALUES ($1,'waiver',0,'Onboarding fee waived (initial demo agency)','waived')`,
     [orgId]
   );
 
@@ -98,12 +98,12 @@ async function run() {
   );
   const managerId = managerRows[0].id;
 
-  // Only A Job's own platform operator login (Super Admin area).
+  // Twanova's own platform operator login (Super Admin area).
   const platformHash = await bcrypt.hash('platform123', 10);
   await db.query(
     `INSERT INTO platform_admins (name, email, password_hash) VALUES ($1,$2,$3)
      ON CONFLICT (email) DO NOTHING`,
-    ['Only A Job HQ', 'admin@onlyajob.platform', platformHash]
+    ['Twanova HQ', 'admin@twanova.platform', platformHash]
   );
 
   const categoryIds = [];
@@ -197,12 +197,89 @@ async function run() {
     [orgId, managerId, mariaId, 'Check in with Maria about placement/meeting mismatch', today]
   );
 
-  console.log('Seeded demo organization "Only A Job — Staffing Agencies" (Founding Partner).');
+  // ════════════════════════════════════════════════════════════════════
+  // ASSIGNMENT COMMUNICATION NETWORK — demo client company, contact,
+  // on-call routing rule, and one live assignment for today so the full
+  // worker → agency/client → acknowledgment loop is clickable immediately.
+  // ════════════════════════════════════════════════════════════════════
+  const { rows: clientRows } = await db.query(
+    `INSERT INTO client_companies (organization_id, name, notes) VALUES ($1,$2,$3) RETURNING id`,
+    [orgId, 'Meridian Distribution Center', 'Warehouse and light-industrial placements']
+  );
+  const clientCompanyId = clientRows[0].id;
+
+  const { rows: locationRows } = await db.query(
+    `INSERT INTO client_locations (organization_id, client_company_id, name, address) VALUES ($1,$2,$3,$4) RETURNING id`,
+    [orgId, clientCompanyId, 'Building 3 — Receiving Dock', '4400 Freight Way, Springfield']
+  );
+  const clientLocationId = locationRows[0].id;
+
+  const clientContactHash = await bcrypt.hash('client123', 10);
+  const { rows: clientContactRows } = await db.query(
+    `INSERT INTO client_contacts (organization_id, client_company_id, role, name, email, phone, password_hash)
+     VALUES ($1,$2,'client_supervisor',$3,$4,$5,$6) RETURNING id`,
+    [orgId, clientCompanyId, 'Priya Nair', 'supervisor@meridiandc.demo', '555-0142', clientContactHash]
+  );
+  const supervisorContactId = clientContactRows[0].id;
+
+  // After-hours routing: the manager covers days, the owner covers
+  // evenings and is also the emergency contact — configurable per agency,
+  // never hard-coded (spec §16).
+  await db.query(
+    `INSERT INTO agency_contact_rules (organization_id, label, start_time, end_time, contact_user_id, is_emergency_contact, sort_order)
+     VALUES ($1,'Daytime dispatch','06:00','18:00',$2,FALSE,0)`,
+    [orgId, managerId]
+  );
+  const { rows: ownerRows } = await db.query(`SELECT id FROM users WHERE organization_id = $1 AND role = 'owner' LIMIT 1`, [orgId]);
+  await db.query(
+    `INSERT INTO agency_contact_rules (organization_id, label, start_time, end_time, contact_user_id, is_emergency_contact, sort_order)
+     VALUES ($1,'Evening / emergency on-call','18:00','06:00',$2,TRUE,1)`,
+    [orgId, ownerRows[0].id]
+  );
+
+  // Field workers — a completely separate account type from the recruiter
+  // "worker" role above. These are the people the agency actually sends
+  // out to a client company's job site; they only use the Assignment
+  // Communication Network (Today's Assignment screen), never the
+  // recruiter dashboard, and vice versa.
+  const fieldWorkerHash = await bcrypt.hash('field123', 10);
+  const fieldWorkerRoster = [
+    { name: 'Marcus Webb', phone: '555-0198' },
+    { name: 'Renee Alvarez', phone: '555-0173' },
+  ];
+  const fieldWorkerIds = [];
+  for (const fw of fieldWorkerRoster) {
+    const email = fw.name.toLowerCase().replace(/\s+/g, '.') + '@summitstaffing.demo';
+    const { rows } = await db.query(
+      `INSERT INTO users (organization_id, branch_id, role, name, email, phone, password_hash)
+       VALUES ($1, $2, 'field_worker', $3, $4, $5, $6) RETURNING id`,
+      [orgId, branchId, fw.name, email, fw.phone, fieldWorkerHash]
+    );
+    fieldWorkerIds.push({ id: rows[0].id, name: fw.name, email });
+  }
+
+  // Marcus Webb is on a live assignment today so the field worker's
+  // Today's Assignment screen and the manager/client views all have
+  // something real to click through end-to-end.
+  const marcusId = fieldWorkerIds[0].id;
+  await db.query(
+    `INSERT INTO assignments
+       (organization_id, worker_id, client_company_id, client_location_id, department,
+        supervisor_contact_id, agency_contact_user_id, shift_date, start_time, end_time, notes, created_by_user_id)
+     VALUES ($1,$2,$3,$4,'Receiving',$5,$6,$7,'08:00','16:30','First day on this placement — badge is at the front desk.',$8)`,
+    [orgId, marcusId, clientCompanyId, clientLocationId, supervisorContactId, managerId, today, managerId]
+  );
+
+  console.log('Seeded demo organization "Twanova — Staffing Solutions" (Starter plan).');
   console.log('Owner login (billing dashboard): owner@summitstaffing.demo / owner123');
   console.log('Manager login: manager@summitstaffing.demo / manager123');
-  console.log('Worker logins (any of):');
+  console.log('Worker (recruiter) logins (any of):');
   for (const w of workerIds) console.log(`  ${w.email} / worker123  (${w.name})`);
-  console.log('Super Admin login (/platform-admin/login.html): admin@onlyajob.platform / platform123');
+  console.log('Field worker logins (/field/login.html) — separate account type, used only for assignments:');
+  for (const fw of fieldWorkerIds) console.log(`  ${fw.email} / field123  (${fw.name})`);
+  console.log('Super Admin login (/platform-admin/login.html): admin@twanova.platform / platform123');
+  console.log('Client company login (/client/login.html): supervisor@meridiandc.demo / client123  (Priya Nair, Meridian Distribution Center)');
+  console.log(`Marcus Webb (field worker) has a live assignment today at Meridian Distribution Center (8:00am-4:30pm).`);
 }
 
 module.exports = { run, DEFAULT_CATEGORIES, GOALS };

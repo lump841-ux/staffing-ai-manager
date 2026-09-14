@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Today's Assignment — Temp Portal — Twanova</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
+</head>
+<body>
+<div class="worker-shell">
+  <div class="worker-hero-topband">
+    <div class="brand-lockup">
+      <img src="/worker/brand-logo-full.png" alt="Twanova — Staffing Solutions" />
+    </div>
+  </div>
+  <div class="worker-hero">
+    <div class="worker-hero-row">
+      <div>
+        <div class="who" id="whoName">—</div>
+        <div class="date" id="whoDate"></div>
+      </div>
+      <button class="btn btn-sm" id="logoutBtn" style="margin-left:auto;">Sign out</button>
+    </div>
+  </div>
+
+  <div class="worker-body">
+    <div class="panel" id="assignmentPanel" style="display:none;">
+      <p class="panel-title">Today's Assignment</p>
+      <div id="assignmentSummary"></div>
+      <div id="assignmentActions" style="margin-top:12px;"></div>
+      <div id="assignmentForms"></div>
+      <p class="error-msg" id="assignmentErr"></p>
+      <div style="margin-top:16px;">
+        <p class="section-label">Communication Record</p>
+        <div id="assignmentEvents"><p class="empty">No activity yet.</p></div>
+      </div>
+    </div>
+
+    <div class="panel" id="noAssignmentPanel" style="display:none;">
+      <p class="panel-title">Today's Assignment</p>
+      <p class="empty">You don't have an assignment scheduled right now. Your staffing agency will assign your next shift.</p>
+    </div>
+
+    <div class="panel" id="weekPanel">
+      <p class="panel-title">This Week</p>
+      <div id="weekList"><p class="empty">Loading…</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentAssignment = null;
+let currentEvents = [];
+
+const STATUS_LABEL = {
+  scheduled: 'Scheduled', confirmed: 'Confirmed', on_my_way: 'On my way',
+  running_late: 'Running late', arrived: 'Arrived on site', in_progress: 'In progress',
+  leaving_early_requested: 'Leave-early requested', leaving_early_approved: 'Leaving early — approved',
+  absent: 'Reported absent', possible_no_show: 'Possible no-show', no_show: 'Marked no-show',
+  shift_complete: 'Shift complete', cancelled: 'Cancelled',
+};
+const STATUS_PILL_CLASS = {
+  on_my_way: 'amber', running_late: 'amber', arrived: 'green', in_progress: 'green',
+  absent: 'red', possible_no_show: 'red', no_show: 'red', cancelled: 'gray',
+  shift_complete: 'green', leaving_early_requested: 'amber',
+};
+
+const LATE_OPTIONS = [5, 10, 15, 30, 45, 60];
+const ABSENCE_REASONS = [
+  ['sick', 'Sick'], ['family_emergency', 'Family emergency'], ['transportation', 'Transportation'],
+  ['childcare', 'Childcare'], ['personal_emergency', 'Personal emergency'], ['other', 'Other'],
+];
+const TIME_ISSUE_TYPES = [
+  ['clock_in_incorrect', 'Clock-in time is wrong'], ['clock_out_incorrect', 'Clock-out time is wrong'],
+  ['missing_punch', 'Missing punch'], ['break_issue', 'Break issue'],
+  ['hours_incorrect', 'Total hours are wrong'], ['other', 'Other'],
+];
+const WORKPLACE_ISSUE_CATEGORIES = [
+  ['assignment_confusion', 'Confusion about the assignment'], ['supervisor_issue', 'Issue with supervisor'],
+  ['schedule_issue', 'Schedule issue'], ['work_conditions', 'Work conditions'],
+  ['equipment_problem', 'Equipment problem'], ['safety_concern', 'Safety concern'],
+  ['harassment_behavior', 'Harassment or behavior concern'], ['other', 'Other'],
+];
+const EMERGENCY_CATEGORIES = [
+  ['workplace_injury', 'Workplace injury'], ['unsafe_situation', 'Unsafe situation'],
+  ['serious_conflict', 'Serious conflict'], ['need_to_leave_immediately', 'Need to leave immediately'],
+  ['other_urgent', 'Other urgent issue'],
+];
+
+function toDateObj(d) {
+  const s = String(d);
+  return new Date(s.includes('T') ? s : s + 'T00:00:00');
+}
+function fmtAssignTime(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const d = new Date(); d.setHours(h, m || 0, 0, 0);
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+async function loadMe() {
+  const res = await fetch('/api/auth/me');
+  if (!res.ok) { window.location.href = '/field/login.html'; return; }
+  const me = await res.json();
+  if (me.role !== 'field_worker') { window.location.href = '/field/login.html'; return; }
+  document.getElementById('whoName').textContent = me.name;
+  document.getElementById('whoDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/field/login.html';
+});
+
+async function loadAssignment() {
+  const res = await fetch('/api/field/assignment/today');
+  const data = await res.json();
+  currentAssignment = data.assignment;
+  currentEvents = data.events || [];
+  const panel = document.getElementById('assignmentPanel');
+  const noPanel = document.getElementById('noAssignmentPanel');
+  if (!currentAssignment) { panel.style.display = 'none'; noPanel.style.display = 'block'; return; }
+  noPanel.style.display = 'none';
+  panel.style.display = 'block';
+  renderAssignmentSummary();
+  renderAssignmentActions();
+  renderAssignmentEvents();
+}
+
+// This Week — a simple read-only look-ahead so a field worker can see
+// what's coming up beyond today, sourced from the same assignments table
+// as Today's Assignment (GET /api/field/assignments/upcoming). Deliberately
+// just a list, not an editable calendar — assignments are always created
+// by the agency, never by the field worker.
+async function loadWeek() {
+  const res = await fetch('/api/field/assignments/upcoming');
+  const listEl = document.getElementById('weekList');
+  if (!res.ok) { listEl.innerHTML = '<p class="empty">Could not load your schedule.</p>'; return; }
+  const upcoming = await res.json();
+  const rest = currentAssignment ? upcoming.filter((a) => a.id !== currentAssignment.id) : upcoming;
+  if (!rest.length) { listEl.innerHTML = '<p class="empty">Nothing else scheduled right now.</p>'; return; }
+  listEl.innerHTML = rest.map((a) => {
+    const pillClass = STATUS_PILL_CLASS[a.status] || 'gray';
+    const loc = a.client_location_name ? ` — ${a.client_location_name}` : '';
+    return `
+      <div class="discrepancy-row">
+        <div>
+          <div class="who">${a.client_company_name}${loc}</div>
+          <div class="why">${toDateObj(a.shift_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} &middot; ${fmtAssignTime(a.start_time)} – ${fmtAssignTime(a.end_time)}</div>
+        </div>
+        <span class="pill ${pillClass}">${STATUS_LABEL[a.status] || a.status}</span>
+      </div>`;
+  }).join('');
+}
+
+function renderAssignmentSummary() {
+  const a = currentAssignment;
+  const pillClass = STATUS_PILL_CLASS[a.status] || 'gray';
+  const loc = a.client_location_name ? ` — ${a.client_location_name}` : '';
+  const dept = a.department ? ` &middot; ${a.department}` : '';
+  document.getElementById('assignmentSummary').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+      <div>
+        <div class="who" style="font-size:16px;">${a.client_company_name}${loc}</div>
+        <div class="why">${toDateObj(a.shift_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} &middot; ${fmtAssignTime(a.start_time)} – ${fmtAssignTime(a.end_time)}${dept}</div>
+        ${a.supervisor_name ? `<div class="why">Supervisor: ${a.supervisor_name}</div>` : ''}
+      </div>
+      <span class="pill ${pillClass}">${STATUS_LABEL[a.status] || a.status}</span>
+    </div>`;
+}
+
+function showAssignmentForm(html) {
+  document.getElementById('assignmentForms').innerHTML = html;
+  document.getElementById('assignmentErr').textContent = '';
+}
+function clearAssignmentForm() { document.getElementById('assignmentForms').innerHTML = ''; }
+
+function actionBtn(label, onclickAttr, primary) {
+  return `<button type="button" class="btn ${primary ? 'btn-primary' : ''}" style="margin:0 6px 8px 0;" onclick="${onclickAttr}">${label}</button>`;
+}
+
+function renderAssignmentActions() {
+  const a = currentAssignment;
+  const preShift = ['scheduled', 'confirmed'];
+  const enRoute = ['on_my_way', 'running_late'];
+  const atWork = ['arrived', 'in_progress', 'leaving_early_requested'];
+  let html = '';
+
+  if (preShift.includes(a.status) || enRoute.includes(a.status)) {
+    html += actionBtn("I'M ON MY WAY", 'assignmentSimpleStatus("on_my_way")', true);
+    html += actionBtn('I’M RUNNING LATE', 'showLateForm()');
+    html += actionBtn("I CAN'T MAKE IT", 'showAbsenceForm()');
+    html += actionBtn('ARRIVED', 'assignmentSimpleStatus("arrived")');
+  }
+  if (atWork.includes(a.status)) {
+    html += actionBtn('REPORT TIME/PUNCH ISSUE', 'showTimeIssueForm()');
+    html += actionBtn('NEED TO LEAVE EARLY', 'showLeaveEarlyForm()');
+    html += actionBtn('WORKPLACE ISSUE', 'showWorkplaceIssueForm()');
+    html += actionBtn('SHIFT COMPLETE', 'assignmentSimpleStatus("shift_complete")', true);
+  }
+  if (!['shift_complete', 'cancelled', 'no_show'].includes(a.status)) {
+    html += actionBtn('I NEED HELP / EMERGENCY', 'showEmergencyForm()');
+    html += '<br/>';
+    html += actionBtn('CONTACT JOB SUPERVISOR', 'showMessageForm("supervisor")');
+    html += actionBtn('CONTACT MY STAFFING AGENCY', 'contactAgency()');
+  }
+  document.getElementById('assignmentActions').innerHTML = html;
+}
+
+async function postAssignment(path, body) {
+  const errEl = document.getElementById('assignmentErr');
+  errEl.textContent = '';
+  const res = await fetch(`/api/field/assignment/${currentAssignment.id}${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}),
+  });
+  const data = await res.json();
+  if (!res.ok) { errEl.textContent = data.error || 'Something went wrong'; return null; }
+  clearAssignmentForm();
+  await loadAssignment();
+  return data;
+}
+
+async function assignmentSimpleStatus(status) { await postAssignment('/status', { status }); }
+
+function showLateForm() {
+  showAssignmentForm(`
+    <div class="field"><label>How late will you be?</label>
+      <div>${LATE_OPTIONS.map((m) => `<button type="button" class="btn" style="margin:0 6px 8px 0;" onclick="submitLate(${m})">${m} min</button>`).join('')}</div>
+    </div>
+    <div class="field"><label>Message (optional)</label><textarea id="lateMsg" rows="2"></textarea></div>`);
+}
+async function submitLate(minutes) {
+  const message = (document.getElementById('lateMsg') || {}).value || '';
+  await postAssignment('/late', { minutes, message });
+}
+
+function showAbsenceForm() {
+  showAssignmentForm(`
+    <div class="field"><label>Reason</label>
+      <div>${ABSENCE_REASONS.map(([v, l]) => `<button type="button" class="btn" style="margin:0 6px 8px 0;" onclick="submitAbsence('${v}')">${l}</button>`).join('')}</div>
+    </div>
+    <div class="field"><label>Anything else (optional)</label><textarea id="absenceMsg" rows="2" placeholder="No unnecessary detail needed"></textarea></div>`);
+}
+async function submitAbsence(reason) {
+  const message = (document.getElementById('absenceMsg') || {}).value || '';
+  await postAssignment('/absence', { reason, message });
+}
+
+function showLeaveEarlyForm() {
+  showAssignmentForm(`
+    <div class="field"><label>What time do you need to leave?</label><input type="time" id="leaveTime" /></div>
+    <div class="field"><label>Reason (optional)</label><textarea id="leaveReason" rows="2"></textarea></div>
+    <button type="button" class="btn btn-primary" onclick="submitLeaveEarly()">Send request</button>`);
+}
+async function submitLeaveEarly() {
+  const departureTime = document.getElementById('leaveTime').value;
+  if (!departureTime) { document.getElementById('assignmentErr').textContent = 'Choose a departure time.'; return; }
+  const message = document.getElementById('leaveReason').value;
+  await postAssignment('/leaving-early', { departureTime, message });
+}
+
+function showTimeIssueForm() {
+  showAssignmentForm(`
+    <div class="field"><label>Issue type</label>
+      <select id="timeIssueType">${TIME_ISSUE_TYPES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>Explain what's wrong</label><textarea id="timeIssueExplain" rows="2"></textarea></div>
+    <p style="font-size:12px;color:var(--ink-3,#98a2b3);margin:0 0 10px;">This creates a reviewable issue for your agency — it will not automatically change your recorded time.</p>
+    <button type="button" class="btn btn-primary" onclick="submitTimeIssue()">Report issue</button>`);
+}
+async function submitTimeIssue() {
+  const issueType = document.getElementById('timeIssueType').value;
+  const explanation = document.getElementById('timeIssueExplain').value;
+  if (!explanation.trim()) { document.getElementById('assignmentErr').textContent = 'Please explain the issue.'; return; }
+  await postAssignment('/time-issue', { issueType, explanation });
+}
+
+function showWorkplaceIssueForm() {
+  showAssignmentForm(`
+    <div class="field"><label>Category</label>
+      <select id="wpCategory">${WORKPLACE_ISSUE_CATEGORIES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>What happened</label><textarea id="wpExplain" rows="3"></textarea></div>
+    <div class="field"><label><input type="checkbox" id="wpPrivate" /> Keep this private between me and my staffing agency</label></div>
+    <button type="button" class="btn btn-primary" onclick="submitWorkplaceIssue()">Report issue</button>`);
+}
+async function submitWorkplaceIssue() {
+  const category = document.getElementById('wpCategory').value;
+  const explanation = document.getElementById('wpExplain').value;
+  const keepPrivate = document.getElementById('wpPrivate').checked;
+  if (!explanation.trim()) { document.getElementById('assignmentErr').textContent = 'Please describe what happened.'; return; }
+  await postAssignment('/workplace-issue', { category, explanation, keepPrivate });
+}
+
+function showEmergencyForm() {
+  showAssignmentForm(`
+    <p style="font-size:13px;font-weight:600;color:var(--red,#d92d20);margin:0 0 10px;">If there is immediate danger or a medical emergency, contact 911/emergency services now. This portal is not a substitute for emergency services.</p>
+    <div class="field"><label>What's happening</label>
+      <select id="emCategory">${EMERGENCY_CATEGORIES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>Details (optional)</label><textarea id="emExplain" rows="2"></textarea></div>
+    <button type="button" class="btn btn-primary" onclick="submitEmergency()" style="background:var(--red,#d92d20);border-color:var(--red,#d92d20);">Send urgent alert</button>`);
+}
+async function submitEmergency() {
+  const category = document.getElementById('emCategory').value;
+  const explanation = document.getElementById('emExplain').value;
+  await postAssignment('/emergency', { category, explanation });
+}
+
+function showMessageForm(to) {
+  showAssignmentForm(`
+    <div class="field"><label>Message to your ${to === 'supervisor' ? 'job supervisor' : 'staffing agency'}</label><textarea id="msgBody" rows="3"></textarea></div>
+    <button type="button" class="btn btn-primary" onclick="submitMessage('${to}')">Send</button>`);
+}
+async function submitMessage(to) {
+  const body = document.getElementById('msgBody').value;
+  if (!body.trim()) { document.getElementById('assignmentErr').textContent = 'Enter a message.'; return; }
+  await postAssignment('/message', { to, body });
+}
+
+async function contactAgency() {
+  const res = await fetch('/api/field/agency-contact');
+  const data = await res.json();
+  const c = data.contact;
+  showAssignmentForm(c
+    ? `<p class="why">Your staffing agency contact right now: <strong>${c.name}</strong>${c.label ? ' (' + c.label + ')' : ''}</p>
+       <div class="field"><label>Message</label><textarea id="msgBody" rows="3"></textarea></div>
+       <button type="button" class="btn btn-primary" onclick="submitMessage('agency')">Send</button>`
+    : `<p class="empty">No agency contact is configured right now. You can still send a message.</p>
+       <div class="field"><label>Message</label><textarea id="msgBody" rows="3"></textarea></div>
+       <button type="button" class="btn btn-primary" onclick="submitMessage('agency')">Send</button>`);
+}
+
+const EVENT_STATUS_PILL = {
+  delivered: 'gray', viewed: 'amber', acknowledged: 'amber', in_progress: 'amber', resolved: 'green', escalated: 'red',
+};
+function renderAssignmentEvents() {
+  const el = document.getElementById('assignmentEvents');
+  if (!currentEvents.length) { el.innerHTML = '<p class="empty">No activity yet.</p>'; return; }
+  el.innerHTML = currentEvents.slice().reverse().map((e) => {
+    const when = new Date(e.created_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
+    const ackLine = e.acknowledgments && e.acknowledgments.length
+      ? e.acknowledgments.map((a) => `${a.actor_name || a.actor_type}: ${a.action}`).join(' &middot; ')
+      : '';
+    return `<div class="discrepancy-row">
+      <div>
+        <div class="who">${e.summary}</div>
+        <div class="why">${when}${e.details ? '<br/>' + e.details : ''}${ackLine ? '<br/>' + ackLine : ''}</div>
+      </div>
+      <span class="pill ${EVENT_STATUS_PILL[e.status] || 'gray'}">${(e.status || '').replace(/_/g, ' ')}</span>
+    </div>`;
+  }).join('');
+}
+
+loadMe();
+loadAssignment().then(loadWeek);
+</script>
+</body>
+</html>
