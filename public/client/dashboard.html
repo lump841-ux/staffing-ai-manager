@@ -117,6 +117,21 @@ function renderKpis() {
   `;
 }
 
+function renderWorkforceList() {
+  const el = document.getElementById('workforceList');
+  el.innerHTML = workforceCache.length ? workforceCache.map((a) => `
+    <div class="discrepancy-row">
+      <div>
+        <div class="who">${a.worker_name}${a.department ? ' — ' + a.department : ''}</div>
+        <div class="why">${a.client_location_name ? a.client_location_name + ' &middot; ' : ''}${fmtAssignTime(a.start_time)} – ${fmtAssignTime(a.end_time)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="pill ${STATUS_PILL_CLASS[a.status] || 'gray'}">${STATUS_LABEL[a.status] || a.status}</span>
+        <button class="btn btn-sm ${currentAssignmentId === a.id ? 'btn-primary' : ''}" onclick="toggleAssignmentDetail(${a.id})">View</button>
+      </div>
+    </div>`).join('') : '<p class="empty">No temp workers scheduled for this date.</p>';
+}
+
 async function loadWorkforce() {
   const date = document.getElementById('dateFilter').value;
   const qs = date ? '?date=' + date : '';
@@ -125,20 +140,27 @@ async function loadWorkforce() {
   if (!date) document.getElementById('dateFilter').value = data.date;
   workforceCache = data.assignments;
   renderKpis();
-  const el = document.getElementById('workforceList');
-  el.innerHTML = data.assignments.length ? data.assignments.map((a) => `
-    <div class="discrepancy-row">
-      <div>
-        <div class="who">${a.worker_name}${a.department ? ' — ' + a.department : ''}</div>
-        <div class="why">${a.client_location_name ? a.client_location_name + ' &middot; ' : ''}${fmtAssignTime(a.start_time)} – ${fmtAssignTime(a.end_time)}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span class="pill ${STATUS_PILL_CLASS[a.status] || 'gray'}">${STATUS_LABEL[a.status] || a.status}</span>
-        <button class="btn btn-sm ${currentAssignmentId === a.id ? 'btn-primary' : ''}" onclick="openAssignmentDetail(${a.id})">View</button>
-      </div>
-    </div>`).join('') : '<p class="empty">No temp workers scheduled for this date.</p>';
+  renderWorkforceList();
 }
 document.getElementById('dateFilter').addEventListener('change', loadWorkforce);
+
+function toggleAssignmentDetail(id) {
+  if (currentAssignmentId === id) {
+    closeAssignmentDetail();
+  } else {
+    openAssignmentDetail(id);
+  }
+}
+
+function closeAssignmentDetail() {
+  currentAssignmentId = null;
+  document.getElementById('assignmentDetailEmpty').style.display = 'block';
+  document.getElementById('assignmentDetailBody').style.display = 'none';
+  document.getElementById('assignmentDetailTitle').textContent = 'Select someone to view details';
+  document.getElementById('messageForm').style.display = 'none';
+  document.getElementById('detailErr').textContent = '';
+  renderWorkforceList();
+}
 
 async function openAssignmentDetail(id) {
   currentAssignmentId = id;
@@ -155,18 +177,7 @@ async function openAssignmentDetail(id) {
   document.getElementById('detailErr').textContent = '';
   renderClientEvents(data.events);
   // Re-render the list so the selected row's "View" button highlights.
-  const el = document.getElementById('workforceList');
-  el.innerHTML = workforceCache.length ? workforceCache.map((wa) => `
-    <div class="discrepancy-row">
-      <div>
-        <div class="who">${wa.worker_name}${wa.department ? ' — ' + wa.department : ''}</div>
-        <div class="why">${wa.client_location_name ? wa.client_location_name + ' &middot; ' : ''}${fmtAssignTime(wa.start_time)} – ${fmtAssignTime(wa.end_time)}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span class="pill ${STATUS_PILL_CLASS[wa.status] || 'gray'}">${STATUS_LABEL[wa.status] || wa.status}</span>
-        <button class="btn btn-sm ${currentAssignmentId === wa.id ? 'btn-primary' : ''}" onclick="openAssignmentDetail(${wa.id})">View</button>
-      </div>
-    </div>`).join('') : '<p class="empty">No temp workers scheduled for this date.</p>';
+  renderWorkforceList();
 }
 
 function renderClientEvents(events) {

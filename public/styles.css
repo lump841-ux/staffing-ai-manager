@@ -160,7 +160,7 @@ a { color: var(--blue); text-decoration: none; }
 .kpi-card .kpi-value.good { color: var(--green); }
 .kpi-card .kpi-sub { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
 
-.pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pill.green { background: var(--green-lt); color: var(--green); }
 .pill.red { background: var(--red-lt); color: var(--red); }
 .pill.amber { background: var(--amber-lt); color: var(--amber); }
