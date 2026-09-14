@@ -1,7 +1,7 @@
 // Worker-only routes. NOTE: "worker" here is the agency's own recruiter /
 // staffing-coordinator role (daily numbers: calls made, placements, etc.)
 // — NOT a field/temp worker placed at a client job site. That's a
-// completely separate role and portal; see routes/field.js.
+// completely separate role and portal; see routes/temp.js.
 // These queries are ALWAYS scoped to req.session.user.id for the worker's
 // own data — there is no code path here that can read another worker's
 // numbers or any manager-only table (worker_time_entries is never

@@ -237,31 +237,31 @@ async function run() {
     [orgId, ownerRows[0].id]
   );
 
-  // Field workers — a completely separate account type from the recruiter
+  // Temps — a completely separate account type from the recruiter
   // "worker" role above. These are the people the agency actually sends
   // out to a client company's job site; they only use the Assignment
   // Communication Network (Today's Assignment screen), never the
   // recruiter dashboard, and vice versa.
-  const fieldWorkerHash = await bcrypt.hash('field123', 10);
-  const fieldWorkerRoster = [
+  const tempHash = await bcrypt.hash('temp123', 10);
+  const tempRoster = [
     { name: 'Marcus Webb', phone: '555-0198' },
     { name: 'Renee Alvarez', phone: '555-0173' },
   ];
-  const fieldWorkerIds = [];
-  for (const fw of fieldWorkerRoster) {
+  const tempIds = [];
+  for (const fw of tempRoster) {
     const email = fw.name.toLowerCase().replace(/\s+/g, '.') + '@summitstaffing.demo';
     const { rows } = await db.query(
       `INSERT INTO users (organization_id, branch_id, role, name, email, phone, password_hash)
-       VALUES ($1, $2, 'field_worker', $3, $4, $5, $6) RETURNING id`,
-      [orgId, branchId, fw.name, email, fw.phone, fieldWorkerHash]
+       VALUES ($1, $2, 'temp', $3, $4, $5, $6) RETURNING id`,
+      [orgId, branchId, fw.name, email, fw.phone, tempHash]
     );
-    fieldWorkerIds.push({ id: rows[0].id, name: fw.name, email });
+    tempIds.push({ id: rows[0].id, name: fw.name, email });
   }
 
-  // Marcus Webb is on a live assignment today so the field worker's
+  // Marcus Webb is on a live assignment today so the temp's
   // Today's Assignment screen and the manager/client views all have
   // something real to click through end-to-end.
-  const marcusId = fieldWorkerIds[0].id;
+  const marcusId = tempIds[0].id;
   await db.query(
     `INSERT INTO assignments
        (organization_id, worker_id, client_company_id, client_location_id, department,
@@ -275,11 +275,11 @@ async function run() {
   console.log('Manager login: manager@summitstaffing.demo / manager123');
   console.log('Worker (recruiter) logins (any of):');
   for (const w of workerIds) console.log(`  ${w.email} / worker123  (${w.name})`);
-  console.log('Field worker logins (/field/login.html) — separate account type, used only for assignments:');
-  for (const fw of fieldWorkerIds) console.log(`  ${fw.email} / field123  (${fw.name})`);
+  console.log('Temp logins (/temp/login.html) — separate account type, used only for assignments:');
+  for (const fw of tempIds) console.log(`  ${fw.email} / temp123  (${fw.name})`);
   console.log('Super Admin login (/platform-admin/login.html): admin@twanova.platform / platform123');
   console.log('Client company login (/client/login.html): supervisor@meridiandc.demo / client123  (Priya Nair, Meridian Distribution Center)');
-  console.log(`Marcus Webb (field worker) has a live assignment today at Meridian Distribution Center (8:00am-4:30pm).`);
+  console.log(`Marcus Webb (temp) has a live assignment today at Meridian Distribution Center (8:00am-4:30pm).`);
 }
 
 module.exports = { run, DEFAULT_CATEGORIES, GOALS };

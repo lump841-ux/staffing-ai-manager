@@ -38,7 +38,7 @@ app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/worker', require('./routes/worker'));
-app.use('/api/field', require('./routes/field'));
+app.use('/api/temp', require('./routes/temp'));
 app.use('/api/manager', require('./routes/manager'));
 app.use('/api/client', require('./routes/client'));
 app.use('/api/signup', require('./routes/signup'));
@@ -48,13 +48,13 @@ app.use('/api/platform-admin', require('./routes/platform-admin'));
 // Role-gated page routes — serving the same static files but only after
 // checking the session, so a direct URL hit or refresh behaves correctly.
 // NOTE: 'worker' = recruiter/staffing-coordinator (own login, own
-// dashboard, tracks their own numbers). 'field_worker' = the person the
+// dashboard, tracks their own numbers). 'temp' = the person the
 // agency places at a client job site (Assignment Communication Network) —
 // a completely separate account and login page, never conflated with
 // 'worker' even though the underlying users table is shared.
 const LOGIN_PAGE_BY_ROLE = {
   worker: '/worker/login.html',
-  field_worker: '/field/login.html',
+  temp: '/temp/login.html',
   manager: '/manager/login.html',
 };
 function requirePageRole(role) {
@@ -71,8 +71,8 @@ function requirePageRole(role) {
 app.get('/dashboard/worker', requirePageRole('worker'), (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'worker', 'dashboard.html'));
 });
-app.get('/dashboard/field', requirePageRole('field_worker'), (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'field', 'dashboard.html'));
+app.get('/dashboard/temp', requirePageRole('temp'), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'temp', 'dashboard.html'));
 });
 app.get('/dashboard/manager', requirePageRole('manager'), (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'manager', 'dashboard.html'));

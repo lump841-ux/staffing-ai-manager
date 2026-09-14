@@ -23,10 +23,10 @@ CREATE TABLE IF NOT EXISTS users (
   branch_id INTEGER REFERENCES branches(id),
   -- 'worker' here means a recruiter/staffing-coordinator on the agency's own
   -- payroll (tracks calls made, placements, etc. via daily_reports).
-  -- 'field_worker' is a completely separate person: someone the agency
+  -- 'temp' is a completely separate person: someone the agency
   -- places at a client company's job site (the Assignment Communication
   -- Network's "Today's Assignment" screen). Never conflate the two.
-  role TEXT NOT NULL CHECK (role IN ('owner','manager','worker','field_worker')),
+  role TEXT NOT NULL CHECK (role IN ('owner','manager','worker','temp')),
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   phone TEXT,

@@ -104,20 +104,20 @@ function fmtAssignTime(t) {
 
 async function loadMe() {
   const res = await fetch('/api/auth/me');
-  if (!res.ok) { window.location.href = '/field/login.html'; return; }
+  if (!res.ok) { window.location.href = '/temp/login.html'; return; }
   const me = await res.json();
-  if (me.role !== 'field_worker') { window.location.href = '/field/login.html'; return; }
+  if (me.role !== 'temp') { window.location.href = '/temp/login.html'; return; }
   document.getElementById('whoName').textContent = me.name;
   document.getElementById('whoDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   await fetch('/api/auth/logout', { method: 'POST' });
-  window.location.href = '/field/login.html';
+  window.location.href = '/temp/login.html';
 });
 
 async function loadAssignment() {
-  const res = await fetch('/api/field/assignment/today');
+  const res = await fetch('/api/temp/assignment/today');
   const data = await res.json();
   currentAssignment = data.assignment;
   currentEvents = data.events || [];
@@ -131,13 +131,13 @@ async function loadAssignment() {
   renderAssignmentEvents();
 }
 
-// This Week — a simple read-only look-ahead so a field worker can see
+// This Week — a simple read-only look-ahead so a temp can see
 // what's coming up beyond today, sourced from the same assignments table
-// as Today's Assignment (GET /api/field/assignments/upcoming). Deliberately
+// as Today's Assignment (GET /api/temp/assignments/upcoming). Deliberately
 // just a list, not an editable calendar — assignments are always created
-// by the agency, never by the field worker.
+// by the agency, never by the temp.
 async function loadWeek() {
-  const res = await fetch('/api/field/assignments/upcoming');
+  const res = await fetch('/api/temp/assignments/upcoming');
   const listEl = document.getElementById('weekList');
   if (!res.ok) { listEl.innerHTML = '<p class="empty">Could not load your schedule.</p>'; return; }
   const upcoming = await res.json();
@@ -214,7 +214,7 @@ function renderAssignmentActions() {
 async function postAssignment(path, body) {
   const errEl = document.getElementById('assignmentErr');
   errEl.textContent = '';
-  const res = await fetch(`/api/field/assignment/${currentAssignment.id}${path}`, {
+  const res = await fetch(`/api/temp/assignment/${currentAssignment.id}${path}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}),
   });
   const data = await res.json();
@@ -323,7 +323,7 @@ async function submitMessage(to) {
 }
 
 async function contactAgency() {
-  const res = await fetch('/api/field/agency-contact');
+  const res = await fetch('/api/temp/agency-contact');
   const data = await res.json();
   const c = data.contact;
   showAssignmentForm(c

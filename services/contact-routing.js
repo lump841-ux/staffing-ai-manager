@@ -1,6 +1,6 @@
-// Resolves "who should this go to right now" so a field worker never has
+// Resolves "who should this go to right now" so a temp never has
 // to know who's on call. Two callers: assignment-comms.js (deciding
-// recipients for an event) and routes/field.js ("Contact my staffing
+// recipients for an event) and routes/temp.js ("Contact my staffing
 // agency" button).
 const db = require('./db');
 

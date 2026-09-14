@@ -52,8 +52,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Sign in failed'; return; }
-    if (data.user.role !== 'field_worker') { errEl.textContent = 'This account is not a temp account.'; return; }
-    window.location.href = '/dashboard/field';
+    if (data.user.role !== 'temp') { errEl.textContent = 'This account is not a temp account.'; return; }
+    window.location.href = '/dashboard/temp';
   } catch (err) {
     errEl.textContent = 'Could not reach the server.';
   }

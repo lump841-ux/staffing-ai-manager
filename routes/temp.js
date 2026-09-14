@@ -1,12 +1,12 @@
-// Field Worker routes — the Assignment Communication Network. A field
-// worker is NOT the same person as a "worker" in routes/worker.js (that
-// role is actually a recruiter/staffing-coordinator on the agency's own
-// payroll, tracking calls made / placements / etc.). A field worker is
-// someone the agency places at a client company's job site — this is
-// their entire portal: today's assignment, status updates, and every
-// structured workforce event that can come off it. Every route below
-// re-verifies the assignment belongs to this field worker before doing
-// anything, same scoping discipline as routes/worker.js.
+// Temp routes — the Assignment Communication Network. A temp is NOT the
+// same person as a "worker" in routes/worker.js (that role is actually a
+// recruiter/staffing-coordinator on the agency's own payroll, tracking
+// calls made / placements / etc.). A temp is someone the agency places at
+// a client company's job site — this is their entire portal: today's
+// assignment, status updates, and every structured workforce event that
+// can come off it. Every route below re-verifies the assignment belongs
+// to this temp before doing anything, same scoping discipline as
+// routes/worker.js.
 const express = require('express');
 const db = require('../services/db');
 const reporting = require('../services/reporting');
@@ -15,7 +15,7 @@ const contactRouting = require('../services/contact-routing');
 const { requireRole } = require('../services/auth-middleware');
 const router = express.Router();
 
-router.use(requireRole('field_worker'));
+router.use(requireRole('temp'));
 
 async function ownedAssignment(req, res) {
   const orgId = req.session.user.organizationId;
@@ -80,7 +80,7 @@ router.get('/assignments/upcoming', async (req, res) => {
 });
 
 // Simple one-tap status changes: on_my_way, arrived, in_progress, shift_complete.
-// Also how a field worker answers a supervisor's "are you coming?" check-on.
+// Also how a temp answers a supervisor's "are you coming?" check-on.
 const SIMPLE_STATUSES = { on_my_way: 'On my way', arrived: 'Arrived on site', shift_complete: 'Shift complete' };
 router.post('/assignment/:id/status', async (req, res) => {
   const assignment = await ownedAssignment(req, res);
@@ -213,7 +213,7 @@ router.post('/assignment/:id/workplace-issue', async (req, res) => {
   if (!WORKPLACE_ISSUE_CATEGORIES.includes(category)) return res.status(400).json({ error: `category must be one of ${WORKPLACE_ISSUE_CATEGORIES.join(', ')}` });
   if (!explanation || !explanation.trim()) return res.status(400).json({ error: 'Please describe what happened' });
 
-  // Some categories (harassment/behavior, or anything the worker marks
+  // Some categories (harassment/behavior, or anything the temp marks
   // private) never reach the client company — worker<->agency only
   // (spec §13). Everything else defaults to a shared record.
   const sensitiveByDefault = category === 'harassment_behavior' || category === 'supervisor_issue';
@@ -263,8 +263,8 @@ router.post('/assignment/:id/emergency', async (req, res) => {
   });
 });
 
-// "Contact my staffing agency" — the field worker never needs to know
-// who's on call; this resolves it for them (spec §16).
+// "Contact my staffing agency" — the temp never needs to know who's on
+// call; this resolves it for them (spec §16).
 router.get('/agency-contact', async (req, res) => {
   const orgId = req.session.user.organizationId;
   let contact = await contactRouting.resolveAgencyContact(orgId, { emergency: false });

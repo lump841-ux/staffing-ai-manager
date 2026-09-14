@@ -74,7 +74,7 @@
       </div>
       <div class="panel" id="newAssignmentPanel" style="display:none;">
         <p class="panel-title">Create assignment</p>
-        <div class="field"><label>Field worker</label><select id="asgWorker"></select></div>
+        <div class="field"><label>Temp</label><select id="asgWorker"></select></div>
         <div class="field"><label>Client company</label><select id="asgClient"></select></div>
         <div class="field"><label>Client location (optional)</label><select id="asgLocation"><option value="">—</option></select></div>
         <div class="field"><label>Department (optional)</label><input id="asgDepartment" /></div>
@@ -382,7 +382,7 @@
 <script>
 let categoriesCache = [];
 let workersCache = [];
-let fieldWorkersCache = [];
+let tempsCache = [];
 
 function fmtDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
 
@@ -525,17 +525,17 @@ document.getElementById('addWorkerBtn').addEventListener('click', async () => {
 });
 
 // ---- Temps ----
-// Internally still the "field_worker" account type (kept as-is under the
+// Internally still the "temp" account type (kept as-is under the
 // hood), displayed to the user as "Temp" — a separate account from the
 // Recruiter roster above. This is the person actually sent
 // out to a client job site for a scheduled shift, used only for
 // assignments in the Assignment Communication Network.
 async function loadFieldWorkers() {
-  const res = await fetch('/api/manager/field-workers');
-  fieldWorkersCache = await res.json();
+  const res = await fetch('/api/manager/temps');
+  tempsCache = await res.json();
   const tbody = document.querySelector('#fieldWorkerRosterTable tbody');
-  tbody.innerHTML = fieldWorkersCache.length
-    ? fieldWorkersCache.map((w) => `
+  tbody.innerHTML = tempsCache.length
+    ? tempsCache.map((w) => `
       <tr>
         <td>${w.name}</td>
         <td>${w.email}</td>
@@ -553,7 +553,7 @@ document.getElementById('addFieldWorkerBtn').addEventListener('click', async () 
   const phone = prompt('Temp phone (optional):') || '';
   const password = prompt('Temporary password:');
   if (!password) return;
-  const res = await fetch('/api/manager/field-workers-new', {
+  const res = await fetch('/api/manager/temps-new', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, email, phone, password }),
   });
@@ -1023,9 +1023,9 @@ let assignmentClientsCache = [];
 async function loadAssignmentsView() {
   if (!workersCache.length) { const r = await fetch('/api/manager/workers'); workersCache = await r.json(); }
   if (!assignmentClientsCache.length) { const r = await fetch('/api/manager/client-companies'); assignmentClientsCache = await r.json(); }
-  if (!fieldWorkersCache.length) { const r = await fetch('/api/manager/field-workers'); fieldWorkersCache = await r.json(); }
-  document.getElementById('asgWorker').innerHTML = fieldWorkersCache.length
-    ? fieldWorkersCache.map((w) => `<option value="${w.id}">${w.name}</option>`).join('')
+  if (!tempsCache.length) { const r = await fetch('/api/manager/temps'); tempsCache = await r.json(); }
+  document.getElementById('asgWorker').innerHTML = tempsCache.length
+    ? tempsCache.map((w) => `<option value="${w.id}">${w.name}</option>`).join('')
     : '<option value="">No temps yet — add one first</option>';
   document.getElementById('asgClient').innerHTML = assignmentClientsCache.map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
   await onAsgClientChange();

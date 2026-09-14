@@ -135,7 +135,7 @@ async function createEvent({
   }
 
   const linkByType = {
-    worker: `/dashboard/field#assignment-${assignmentId}`,
+    worker: `/dashboard/temp#assignment-${assignmentId}`,
     client_contact: `/client/dashboard.html#assignment-${assignmentId}`,
     agency_user: `/dashboard/manager#attention`,
   };

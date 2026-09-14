@@ -375,8 +375,7 @@ router.post('/workers-new', async (req, res) => {
 // ════════════════════════════════════════════════════════════════════
 
 // ---- Temps ----
-// Internally the "field_worker" account type (kept as-is under the hood),
-// shown to the user as "Temp". NOT the same account as the "worker" role
+// The "temp" account type. NOT the same account as the "worker" role
 // above, which is now labeled "Recruiter" (they track their own daily
 // numbers — Contracts, Meetings, etc.). A Temp is the person the agency
 // actually sends out
@@ -385,23 +384,23 @@ router.post('/workers-new', async (req, res) => {
 // their login here, the same way client contacts are created below — no
 // self-signup.
 
-router.get('/field-workers', async (req, res) => {
+router.get('/temps', async (req, res) => {
   const { rows } = await db.query(
     `SELECT id, name, email, phone, avatar_url, active, created_at FROM users
-     WHERE organization_id = $1 AND role = 'field_worker' ORDER BY name ASC`,
+     WHERE organization_id = $1 AND role = 'temp' ORDER BY name ASC`,
     [req.session.user.organizationId]
   );
   res.json(rows);
 });
 
-router.post('/field-workers-new', async (req, res) => {
+router.post('/temps-new', async (req, res) => {
   const { name, email, phone, password } = req.body || {};
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email, and password are required' });
   const hash = await bcrypt.hash(password, 10);
   try {
     const { rows } = await db.query(
       `INSERT INTO users (organization_id, branch_id, role, name, email, phone, password_hash)
-       VALUES ($1, $2, 'field_worker', $3, $4, $5, $6) RETURNING id, name, email, phone`,
+       VALUES ($1, $2, 'temp', $3, $4, $5, $6) RETURNING id, name, email, phone`,
       [req.session.user.organizationId, req.session.user.branchId, name, email.toLowerCase().trim(), phone || null, hash]
     );
     res.json(rows[0]);
@@ -543,11 +542,11 @@ router.post('/assignments', async (req, res) => {
     return res.status(400).json({ error: 'workerId, clientCompanyId, shiftDate, startTime, and endTime are required' });
   }
 
-  const { rows: fieldWorkerCheck } = await db.query(
-    `SELECT id FROM users WHERE id = $1 AND organization_id = $2 AND role = 'field_worker'`,
+  const { rows: tempCheck } = await db.query(
+    `SELECT id FROM users WHERE id = $1 AND organization_id = $2 AND role = 'temp'`,
     [workerId, orgId]
   );
-  if (!fieldWorkerCheck.length) return res.status(400).json({ error: 'workerId must be an existing temp' });
+  if (!tempCheck.length) return res.status(400).json({ error: 'workerId must be an existing temp' });
 
   const { rows } = await db.query(
     `INSERT INTO assignments
@@ -564,7 +563,7 @@ router.post('/assignments', async (req, res) => {
     `INSERT INTO notifications (organization_id, recipient_type, recipient_id, title, body, link, assignment_id)
      VALUES ($1,'worker',$2,$3,$4,$5,$6)`,
     [orgId, workerId, `New assignment: ${assignment.client_company_name}`,
-      `${shiftDate} · ${startTime}–${endTime}`, '/dashboard/field#assignment', assignment.id]
+      `${shiftDate} · ${startTime}–${endTime}`, '/dashboard/temp#assignment', assignment.id]
   );
 
   res.json(assignment);
