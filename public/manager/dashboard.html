@@ -21,7 +21,6 @@
     <div class="nav-item" id="attentionNavItem" data-view="attention" style="display:none;">Needs Attention</div>
     <div class="nav-item" id="assignmentsNavItem" data-view="assignments" style="display:none;">Assignments</div>
     <div class="nav-item" id="clientsNavItem" data-view="clients" style="display:none;">Client Companies</div>
-    <div class="nav-item" id="fieldworkersNavItem" data-view="fieldworkers" style="display:none;">Temps</div>
     <div class="nav-item" data-view="week">This Week</div>
     <div class="nav-item" data-view="workers">Recruiters</div>
     <div class="nav-item" data-view="categories">Categories</div>
@@ -401,7 +400,8 @@ async function loadMe() {
     document.getElementById('attentionNavItem').style.display = 'block';
     document.getElementById('assignmentsNavItem').style.display = 'block';
     document.getElementById('clientsNavItem').style.display = 'block';
-    document.getElementById('fieldworkersNavItem').style.display = 'block';
+    // Temps nav item is removed entirely for now (owner included) — see
+    // requireOwner gate in routes/manager.js for the matching backend lock.
   }
 }
 
