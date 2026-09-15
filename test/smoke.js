@@ -255,7 +255,10 @@ async function main() {
     ok(res.json.recipients.some((r) => r.type === 'client_contact') && res.json.recipients.some((r) => r.type === 'agency_user'), 'Late notice automatically routes to both the client supervisor and the agency contact — temp never picks recipients');
 
     res = await request(port, 'GET', '/api/manager/attention', null, managerCookie);
-    ok(res.status === 200 && res.json.needsAttention.some((e) => e.id === lateEventId), 'Manager\'s "Needs Attention" screen surfaces the late notice (not an inbox — a counts-and-cards feed)');
+    ok(res.status === 403, 'Lead (manager role) is blocked from the temp-facing "Needs Attention" screen — owner-only for now');
+
+    res = await request(port, 'GET', '/api/manager/attention', null, ownerCookie);
+    ok(res.status === 200 && res.json.needsAttention.some((e) => e.id === lateEventId), 'Owner\'s "Needs Attention" screen surfaces the late notice (not an inbox — a counts-and-cards feed)');
     ok(res.json.runningLate >= 1, 'Attention KPI counts the running-late assignment');
 
     res = await request(port, 'GET', `/api/client/assignments/${assignmentId}`, null, clientCookie);
@@ -265,7 +268,10 @@ async function main() {
     ok(res.status === 200, 'Client supervisor acknowledges the late notice');
 
     res = await request(port, 'POST', `/api/manager/events/${lateEventId}/acknowledge`, { action: 'resolved' }, managerCookie);
-    ok(res.status === 200, 'Agency marks the late notice resolved');
+    ok(res.status === 403, 'Lead (manager role) cannot acknowledge/resolve temp assignment events — owner-only for now');
+
+    res = await request(port, 'POST', `/api/manager/events/${lateEventId}/acknowledge`, { action: 'resolved' }, ownerCookie);
+    ok(res.status === 200, 'Owner marks the late notice resolved');
 
     res = await request(port, 'GET', `/api/temp/assignment/${assignmentId}`, null, tempCookie);
     const lateEventAfter = res.json.events.find((e) => e.id === lateEventId);
@@ -290,7 +296,10 @@ async function main() {
     ok(!res.json.events.some((e) => e.id === privateEventId), 'Client portal never receives the private worker<->agency event, even when reading the same assignment');
 
     res = await request(port, 'GET', `/api/manager/assignments/${assignmentId}`, null, managerCookie);
-    ok(res.json.events.some((e) => e.id === privateEventId), 'Agency (manager) does see the private workplace issue');
+    ok(res.status === 403, 'Lead (manager role) cannot view assignment detail (including the private workplace issue) — owner-only for now');
+
+    res = await request(port, 'GET', `/api/manager/assignments/${assignmentId}`, null, ownerCookie);
+    ok(res.json.events.some((e) => e.id === privateEventId), 'Owner does see the private workplace issue');
 
     console.log('\n── ACN: emergency disclaimer (spec §12) ──');
     res = await request(port, 'POST', `/api/temp/assignment/${assignmentId}/emergency`, { category: 'unsafe_situation', explanation: 'Test emergency event' }, tempCookie);
@@ -302,7 +311,10 @@ async function main() {
     ok(res.status === 200, 'Field worker requests to leave early');
 
     res = await request(port, 'POST', `/api/manager/assignments/${assignmentId}/leaving-early-response`, { decision: 'approved', note: 'Approved, thanks for the heads up' }, managerCookie);
-    ok(res.status === 200, 'Manager can approve a leave-early request');
+    ok(res.status === 403, 'Lead (manager role) cannot respond to a leave-early request — owner-only for now');
+
+    res = await request(port, 'POST', `/api/manager/assignments/${assignmentId}/leaving-early-response`, { decision: 'approved', note: 'Approved, thanks for the heads up' }, ownerCookie);
+    ok(res.status === 200, 'Owner can approve a leave-early request');
 
     res = await request(port, 'GET', `/api/temp/assignment/${assignmentId}`, null, tempCookie);
     ok(res.json.assignment.status === 'leaving_early_approved', "Assignment status reflects the manager's approval");
@@ -312,14 +324,23 @@ async function main() {
     const davidId = res.json.find((w) => w.name === 'David Kim').id;
 
     res = await request(port, 'POST', '/api/manager/temps-new', { name: 'Test Temp', email: 'test.temp@summitstaffing.demo', phone: '555-0100', password: 'temp123' }, managerCookie);
-    ok(res.status === 200 && !!res.json.id, 'Manager can create a new temp account');
-    const newTempId = res.json.id;
+    ok(res.status === 403, 'Lead (manager role) is blocked from creating temp accounts — owner-only for now, could become a paid Lead upgrade later');
 
     res = await request(port, 'GET', '/api/manager/temps', null, managerCookie);
+    ok(res.status === 403, 'Lead (manager role) is blocked from the temp roster — owner-only for now');
+
+    res = await request(port, 'POST', '/api/manager/temps-new', { name: 'Test Temp', email: 'test.temp@summitstaffing.demo', phone: '555-0100', password: 'temp123' }, ownerCookie);
+    ok(res.status === 200 && !!res.json.id, 'Owner can create a new temp account');
+    const newTempId = res.json.id;
+
+    res = await request(port, 'GET', '/api/manager/temps', null, ownerCookie);
     ok(res.status === 200 && res.json.some((w) => w.id === newTempId), 'New temp shows up in the temp roster');
 
     res = await request(port, 'POST', '/api/manager/client-companies', { name: 'Test Client Co', notes: 'Created by smoke test' }, managerCookie);
-    ok(res.status === 200 && !!res.json.id, 'Manager can create a new client company');
+    ok(res.status === 403, 'Lead (manager role) is blocked from creating client companies — owner-only for now');
+
+    res = await request(port, 'POST', '/api/manager/client-companies', { name: 'Test Client Co', notes: 'Created by smoke test' }, ownerCookie);
+    ok(res.status === 200 && !!res.json.id, 'Owner can create a new client company');
     const newClientId = res.json.id;
 
     console.log('\n── Client billing — owner-only visibility ──');
@@ -330,27 +351,35 @@ async function main() {
     ok(res.status === 403, 'Manager is blocked from editing client billing rates');
 
     res = await request(port, 'GET', `/api/manager/client-companies/${newClientId}`, null, managerCookie);
-    ok(res.status === 200 && res.json.bill_rate_hourly === undefined && res.json.pay_rate_hourly === undefined, "Manager's view of the client company never includes billing fields");
+    ok(res.status === 403, 'Lead (manager role) cannot view client company detail at all now — owner-only for now (was previously scrubbed, now fully hidden)');
 
     res = await request(port, 'GET', '/api/manager/client-companies', null, managerCookie);
-    ok(res.status === 200 && res.json.every((c) => c.bill_rate_hourly === undefined), 'Manager client-company list is scrubbed of billing fields too');
+    ok(res.status === 403, 'Lead (manager role) cannot list client companies at all now — owner-only for now');
 
     res = await request(port, 'GET', `/api/manager/client-companies/${newClientId}`, null, ownerCookie);
     ok(res.status === 200 && Number(res.json.bill_rate_hourly) === 28.5 && res.json.billing_notes === 'Net 30', 'Owner can see the client billing rates they set');
 
     res = await request(port, 'POST', `/api/manager/client-companies/${newClientId}/contacts`, { name: 'Test Contact', email: 'testcontact@testclientco.demo', password: 'contact123', role: 'client_supervisor' }, managerCookie);
-    ok(res.status === 200, 'Manager can add a client contact login');
+    ok(res.status === 403, 'Lead (manager role) cannot add a client contact login — owner-only for now');
+
+    res = await request(port, 'POST', `/api/manager/client-companies/${newClientId}/contacts`, { name: 'Test Contact', email: 'testcontact@testclientco.demo', password: 'contact123', role: 'client_supervisor' }, ownerCookie);
+    ok(res.status === 200, 'Owner can add a client contact login');
 
     res = await request(port, 'POST', '/api/manager/assignments', {
       workerId: davidId, clientCompanyId: newClientId, shiftDate: (new Date(Date.now() + 24 * 60 * 60 * 1000)).toISOString().slice(0, 10), startTime: '09:00', endTime: '17:00',
     }, managerCookie);
-    ok(res.status === 400, 'Manager cannot assign a shift to a recruiter (David Kim) — workerId must be an actual temp');
+    ok(res.status === 403, 'Lead (manager role) cannot create assignments at all — owner-only for now');
+
+    res = await request(port, 'POST', '/api/manager/assignments', {
+      workerId: davidId, clientCompanyId: newClientId, shiftDate: (new Date(Date.now() + 24 * 60 * 60 * 1000)).toISOString().slice(0, 10), startTime: '09:00', endTime: '17:00',
+    }, ownerCookie);
+    ok(res.status === 400, 'Owner cannot assign a shift to a recruiter (David Kim) — workerId must be an actual temp');
 
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     res = await request(port, 'POST', '/api/manager/assignments', {
       workerId: newTempId, clientCompanyId: newClientId, shiftDate: tomorrow, startTime: '09:00', endTime: '17:00',
-    }, managerCookie);
-    ok(res.status === 200 && res.json.client_company_name === 'Test Client Co', 'Manager creates a new assignment for the new temp');
+    }, ownerCookie);
+    ok(res.status === 200 && res.json.client_company_name === 'Test Client Co', 'Owner creates a new assignment for the new temp');
     const newAssignmentId = res.json.id;
 
     res = await request(port, 'POST', '/api/auth/login', { email: 'test.temp@summitstaffing.demo', password: 'temp123' });
@@ -387,7 +416,10 @@ async function main() {
     ok(res.status === 200, 'Temp can send a free-text message when Temp Chat is enabled for the agency');
 
     res = await request(port, 'POST', `/api/manager/assignments/${newAssignmentId}/message`, { body: 'Got it, thanks for the heads up.' }, managerCookie);
-    ok(res.status === 200, 'Lead/manager can send a free-text message back when Temp Chat is enabled');
+    ok(res.status === 403, 'Lead (manager role) cannot send assignment messages — owner-only for now');
+
+    res = await request(port, 'POST', `/api/manager/assignments/${newAssignmentId}/message`, { body: 'Got it, thanks for the heads up.' }, ownerCookie);
+    ok(res.status === 200, 'Owner can send a free-text message back when Temp Chat is enabled');
 
     res = await request(port, 'POST', '/api/platform-admin/login', { email: 'admin@twanova.platform', password: 'platform123' });
     ok(res.status === 200, 'Super Admin logs in');
@@ -402,8 +434,8 @@ async function main() {
     res = await request(port, 'POST', `/api/temp/assignment/${newAssignmentId}/message`, { to: 'agency', body: 'Anyone there?' }, newTempCookie);
     ok(res.status === 403, 'Temp messaging is blocked once Temp Chat is disabled for the agency');
 
-    res = await request(port, 'POST', `/api/manager/assignments/${newAssignmentId}/message`, { body: 'Still here.' }, managerCookie);
-    ok(res.status === 403, 'Lead/manager messaging is blocked once Temp Chat is disabled for the agency');
+    res = await request(port, 'POST', `/api/manager/assignments/${newAssignmentId}/message`, { body: 'Still here.' }, ownerCookie);
+    ok(res.status === 403, 'Owner messaging is blocked once Temp Chat is disabled for the agency');
 
     res = await request(port, 'POST', `/api/platform-admin/agencies/${summitOrgId}/temp-chat`, { enabled: true }, platformAdminCookie);
     ok(res.status === 200 && res.json.temp_chat_enabled === true, 'Super Admin can re-enable Temp Chat for an agency');

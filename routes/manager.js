@@ -10,6 +10,17 @@ const router = express.Router();
 
 router.use(requireRole('manager', 'owner'));
 
+// Temp/assignment/client-company data (the Assignment Communication
+// Network) is owner-only for now. Leads ("manager" role) and Recruiters
+// only see recruiter/workforce data. This can become a paid upgrade for
+// Leads later — for now it's a flat 403.
+function requireOwner(req, res, next) {
+  if (req.session.user.role !== 'owner') {
+    return res.status(403).json({ error: 'This is only available to the agency owner right now.' });
+  }
+  next();
+}
+
 // ---- Today / Week dashboard ----
 
 router.get('/today', async (req, res) => {
@@ -384,7 +395,7 @@ router.post('/workers-new', async (req, res) => {
 // their login here, the same way client contacts are created below — no
 // self-signup.
 
-router.get('/temps', async (req, res) => {
+router.get('/temps', requireOwner, async (req, res) => {
   const { rows } = await db.query(
     `SELECT id, name, email, phone, avatar_url, active, created_at FROM users
      WHERE organization_id = $1 AND role = 'temp' ORDER BY name ASC`,
@@ -393,7 +404,7 @@ router.get('/temps', async (req, res) => {
   res.json(rows);
 });
 
-router.post('/temps-new', async (req, res) => {
+router.post('/temps-new', requireOwner, async (req, res) => {
   const { name, email, phone, password } = req.body || {};
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email, and password are required' });
   const hash = await bcrypt.hash(password, 10);
@@ -423,7 +434,7 @@ function scrubBillingFields(row, req) {
   return clean;
 }
 
-router.get('/client-companies', async (req, res) => {
+router.get('/client-companies', requireOwner, async (req, res) => {
   const { rows } = await db.query(
     `SELECT * FROM client_companies WHERE organization_id = $1 ORDER BY name ASC`,
     [req.session.user.organizationId]
@@ -431,7 +442,7 @@ router.get('/client-companies', async (req, res) => {
   res.json(rows.map((r) => scrubBillingFields(r, req)));
 });
 
-router.post('/client-companies', async (req, res) => {
+router.post('/client-companies', requireOwner, async (req, res) => {
   const { name, notes } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
   const { rows } = await db.query(
@@ -441,7 +452,7 @@ router.post('/client-companies', async (req, res) => {
   res.json(scrubBillingFields(rows[0], req));
 });
 
-router.get('/client-companies/:id', async (req, res) => {
+router.get('/client-companies/:id', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const { rows: companyRows } = await db.query(
     `SELECT * FROM client_companies WHERE organization_id = $1 AND id = $2`, [orgId, req.params.id]
@@ -478,7 +489,7 @@ router.put('/client-companies/:id/billing', async (req, res) => {
   res.json(rows[0]);
 });
 
-router.post('/client-companies/:id/locations', async (req, res) => {
+router.post('/client-companies/:id/locations', requireOwner, async (req, res) => {
   const { name, address } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
   const { rows } = await db.query(
@@ -491,7 +502,7 @@ router.post('/client-companies/:id/locations', async (req, res) => {
 // Creates a client-side login (supervisor or HR). Password is set here by
 // the agency and should be handed to the client contact out of band —
 // there's no self-signup path for client contacts, by design.
-router.post('/client-companies/:id/contacts', async (req, res) => {
+router.post('/client-companies/:id/contacts', requireOwner, async (req, res) => {
   const { name, email, phone, password, role } = req.body || {};
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email, and password are required' });
   const roleValue = role === 'client_hr' ? 'client_hr' : 'client_supervisor';
@@ -510,7 +521,7 @@ router.post('/client-companies/:id/contacts', async (req, res) => {
 
 // ---- Assignments ----
 
-router.get('/assignments', async (req, res) => {
+router.get('/assignments', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const { date, status } = req.query;
   const clauses = ['a.organization_id = $1'];
@@ -531,7 +542,7 @@ router.get('/assignments', async (req, res) => {
   res.json(rows);
 });
 
-router.post('/assignments', async (req, res) => {
+router.post('/assignments', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const {
     workerId, clientCompanyId, clientLocationId, department, supervisorContactId,
@@ -569,7 +580,7 @@ router.post('/assignments', async (req, res) => {
   res.json(assignment);
 });
 
-router.get('/assignments/:id', async (req, res) => {
+router.get('/assignments/:id', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const assignment = await comms.getAssignment(orgId, req.params.id);
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
@@ -577,7 +588,7 @@ router.get('/assignments/:id', async (req, res) => {
   res.json({ assignment, events });
 });
 
-router.post('/assignments/:id/cancel', async (req, res) => {
+router.post('/assignments/:id/cancel', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const assignment = await comms.getAssignment(orgId, req.params.id);
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
@@ -586,7 +597,7 @@ router.post('/assignments/:id/cancel', async (req, res) => {
 });
 
 // A manager/owner can respond to a worker's "leaving early" request.
-router.post('/assignments/:id/leaving-early-response', async (req, res) => {
+router.post('/assignments/:id/leaving-early-response', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const assignment = await comms.getAssignment(orgId, req.params.id);
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
@@ -615,7 +626,7 @@ router.post('/assignments/:id/leaving-early-response', async (req, res) => {
 
 // A manager marking a no-show manually (spec §9 — after all reporting
 // channels have failed and the worker never responded).
-router.post('/assignments/:id/mark-no-show', async (req, res) => {
+router.post('/assignments/:id/mark-no-show', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const assignment = await comms.getAssignment(orgId, req.params.id);
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
@@ -639,7 +650,7 @@ router.post('/assignments/:id/mark-no-show', async (req, res) => {
 // (the paid upgrade). Structured events above (leaving-early-response,
 // mark-no-show) are never gated; only this open-ended message path checks
 // temp_chat_enabled.
-router.post('/assignments/:id/message', async (req, res) => {
+router.post('/assignments/:id/message', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const assignment = await comms.getAssignment(orgId, req.params.id);
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
@@ -663,7 +674,7 @@ router.post('/assignments/:id/message', async (req, res) => {
   res.json({ ok: true, event: result.event });
 });
 
-router.post('/events/:id/acknowledge', async (req, res) => {
+router.post('/events/:id/acknowledge', requireOwner, async (req, res) => {
   const { action, note } = req.body || {};
   const allowed = ['viewed', 'acknowledged', 'in_progress', 'resolved'];
   if (!allowed.includes(action)) return res.status(400).json({ error: `action must be one of ${allowed.join(', ')}` });
@@ -676,7 +687,7 @@ router.post('/events/:id/acknowledge', async (req, res) => {
 
 // ---- Attention Required (spec §22 — the primary manager screen) ----
 
-router.get('/attention', async (req, res) => {
+router.get('/attention', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const today = reporting.dateStr(new Date());
 
@@ -714,7 +725,7 @@ router.get('/attention', async (req, res) => {
 
 // ---- Agency contact routing rules (spec §16) ----
 
-router.get('/contact-rules', async (req, res) => {
+router.get('/contact-rules', requireOwner, async (req, res) => {
   const { rows } = await db.query(
     `SELECT r.*, u.name AS contact_name FROM agency_contact_rules r
      JOIN users u ON u.id = r.contact_user_id
@@ -724,7 +735,7 @@ router.get('/contact-rules', async (req, res) => {
   res.json(rows);
 });
 
-router.post('/contact-rules', async (req, res) => {
+router.post('/contact-rules', requireOwner, async (req, res) => {
   const { label, startTime, endTime, contactUserId, isEmergencyContact, sortOrder } = req.body || {};
   if (!label || !startTime || !endTime || !contactUserId) {
     return res.status(400).json({ error: 'label, startTime, endTime, and contactUserId are required' });
@@ -737,7 +748,7 @@ router.post('/contact-rules', async (req, res) => {
   res.json(rows[0]);
 });
 
-router.delete('/contact-rules/:id', async (req, res) => {
+router.delete('/contact-rules/:id', requireOwner, async (req, res) => {
   await db.query(`DELETE FROM agency_contact_rules WHERE id = $1 AND organization_id = $2`, [req.params.id, req.session.user.organizationId]);
   res.json({ ok: true });
 });
