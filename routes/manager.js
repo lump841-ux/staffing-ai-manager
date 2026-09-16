@@ -411,6 +411,19 @@ router.put('/activity-proofs/:id', async (req, res) => {
   res.json(rows[0]);
 });
 
+// Remove a photo proof submission outright — e.g. it was the wrong photo,
+// a duplicate, or a worker submitted something that shouldn't be kept on
+// file. Unlike worker/category removal there's no downstream table that
+// references activity_proofs.id, so a hard delete is safe here.
+router.delete('/activity-proofs/:id', async (req, res) => {
+  const { rows } = await db.query(
+    `DELETE FROM activity_proofs WHERE id = $1 AND organization_id = $2 RETURNING id`,
+    [req.params.id, req.session.user.organizationId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Submission not found' });
+  res.json({ ok: true });
+});
+
 // ---- Agency settings ----
 // Currently just the self clock-in switch. Any manager can view it;
 // changing it is owner-only, since it's an org-wide policy decision.
@@ -534,7 +547,7 @@ function scrubBillingFields(row, req) {
 
 router.get('/client-companies', requireOwner, async (req, res) => {
   const { rows } = await db.query(
-    `SELECT * FROM client_companies WHERE organization_id = $1 ORDER BY name ASC`,
+    `SELECT * FROM client_companies WHERE organization_id = $1 AND active = TRUE ORDER BY name ASC`,
     [req.session.user.organizationId]
   );
   res.json(rows.map((r) => scrubBillingFields(r, req)));
@@ -585,6 +598,30 @@ router.put('/client-companies/:id/billing', async (req, res) => {
   );
   if (!rows.length) return res.status(404).json({ error: 'Client company not found' });
   res.json(rows[0]);
+});
+
+// Remove a client company. Owner-only, like everything else under
+// /client-companies. Soft-delete (active = FALSE) rather than a hard
+// DELETE — assignments (and their full Communication Record history) keep
+// pointing at this client company for past shifts, they just stop showing
+// up as a place new shifts can be scheduled. Also deactivates that
+// client's own contact logins (client_contacts.active = FALSE) so a
+// removed client can no longer sign into the client portal — the login
+// route already checks contact.active.
+router.delete('/client-companies/:id', requireOwner, async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const companyId = Number(req.params.id);
+  const { rows } = await db.query(
+    `UPDATE client_companies SET active = FALSE
+     WHERE id = $1 AND organization_id = $2 RETURNING id`,
+    [companyId, orgId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Client company not found' });
+  await db.query(
+    `UPDATE client_contacts SET active = FALSE WHERE client_company_id = $1 AND organization_id = $2`,
+    [companyId, orgId]
+  );
+  res.json({ ok: true });
 });
 
 router.post('/client-companies/:id/locations', requireOwner, async (req, res) => {

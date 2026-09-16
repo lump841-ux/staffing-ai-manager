@@ -148,6 +148,24 @@ async function main() {
     res = await request(port, 'DELETE', `/api/manager/workers/${smokeWorkerId}`, null, ownerCookie);
     ok(res.status === 404, 'Removing an already-removed sales team member returns 404, not a crash');
 
+    console.log('\n── Delete photo proof ──');
+    const tinyPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    res = await request(port, 'POST', '/api/worker/activity-proofs', { title: 'Smoke test proof', photoDataUrl: tinyPngDataUrl }, workerCookie);
+    ok(res.status === 200 && res.json.ok === true && res.json.proof && res.json.proof.id, 'Worker can submit a photo proof');
+    const smokeProofId = res.json.proof.id;
+
+    res = await request(port, 'DELETE', `/api/manager/activity-proofs/${smokeProofId}`, null, workerCookie);
+    ok(res.status === 403, 'Worker cannot delete a photo proof — manager/owner only');
+
+    res = await request(port, 'DELETE', `/api/manager/activity-proofs/${smokeProofId}`, null, managerCookie);
+    ok(res.status === 200 && res.json.ok === true, 'Manager can delete a photo proof');
+
+    res = await request(port, 'GET', '/api/manager/activity-proofs', null, managerCookie);
+    ok(res.status === 200 && !res.json.some((p) => p.id === smokeProofId), 'Deleted photo proof no longer appears in the review queue');
+
+    res = await request(port, 'DELETE', `/api/manager/activity-proofs/${smokeProofId}`, null, managerCookie);
+    ok(res.status === 404, 'Deleting an already-deleted photo proof returns 404, not a crash');
+
     console.log('\n── Category manager ──');
     res = await request(port, 'POST', '/api/manager/categories', { key: 'test_cat', label: 'Test category' }, managerCookie);
     ok(res.status === 200 && res.json.key === 'test_cat', 'Manager can add a custom category');
@@ -431,6 +449,29 @@ async function main() {
 
     res = await request(port, 'POST', `/api/manager/client-companies/${newClientId}/contacts`, { name: 'Test Contact', email: 'testcontact@testclientco.demo', password: 'contact123', role: 'client_supervisor' }, ownerCookie);
     ok(res.status === 200, 'Owner can add a client contact login');
+
+    console.log('\n── Remove client company ──');
+    res = await request(port, 'POST', '/api/manager/client-companies', { name: 'Throwaway Client Co', notes: '' }, ownerCookie);
+    ok(res.status === 200 && !!res.json.id, 'Owner can create a second client company to test removal on');
+    const throwawayClientId = res.json.id;
+
+    res = await request(port, 'POST', `/api/manager/client-companies/${throwawayClientId}/contacts`, { name: 'Throwaway Contact', email: 'throwaway@testclientco.demo', password: 'contact123', role: 'client_supervisor' }, ownerCookie);
+    ok(res.status === 200, 'Owner can add a contact to the throwaway client company');
+
+    res = await request(port, 'DELETE', `/api/manager/client-companies/${throwawayClientId}`, null, managerCookie);
+    ok(res.status === 403, 'Lead (manager role) cannot remove a client company — owner only');
+
+    res = await request(port, 'DELETE', `/api/manager/client-companies/${throwawayClientId}`, null, ownerCookie);
+    ok(res.status === 200 && res.json.ok === true, 'Owner can remove a client company');
+
+    res = await request(port, 'GET', '/api/manager/client-companies', null, ownerCookie);
+    ok(res.status === 200 && !res.json.some((c) => c.id === throwawayClientId), 'Removed client company drops off the list immediately');
+
+    res = await request(port, 'POST', '/api/auth/login', { email: 'throwaway@testclientco.demo', password: 'contact123' });
+    ok(res.status === 401, "Removed client company's contact login is deactivated");
+
+    res = await request(port, 'DELETE', `/api/manager/client-companies/${throwawayClientId}`, null, ownerCookie);
+    ok(res.status === 404, 'Removing an already-removed client company returns 404, not a crash');
 
     res = await request(port, 'POST', '/api/manager/assignments', {
       workerId: davidId, clientCompanyId: newClientId, shiftDate: (new Date(Date.now() + 24 * 60 * 60 * 1000)).toISOString().slice(0, 10), startTime: '09:00', endTime: '17:00',

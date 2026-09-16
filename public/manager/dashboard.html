@@ -1001,13 +1001,22 @@ async function loadPhotoReview() {
           </div>
           ${PHOTO_STATUS_PILL[p.status] || ''}
         </div>
-        ${p.status !== 'verified' ? `
         <div class="discrepancy-actions">
+          ${p.status !== 'verified' ? `
           <button class="btn btn-sm" onclick="reviewProof(${p.id}, 'verified')">Approve / Verify</button>
-          <button class="btn btn-sm" onclick="reviewProofWithComment(${p.id}, 'needs_review')">Needs Review / Ask for info</button>
-        </div>` : ''}
+          <button class="btn btn-sm" onclick="reviewProofWithComment(${p.id}, 'needs_review')">Needs Review / Ask for info</button>` : ''}
+          <button class="btn btn-sm" style="color:var(--red,#d92d20);" onclick="deletePhotoProof(${p.id})">Delete</button>
+        </div>
       </div>`).join('')
     : '<p class="empty">Nothing in this queue.</p>';
+}
+
+async function deletePhotoProof(id) {
+  if (!confirm('Delete this photo submission? This cannot be undone.')) return;
+  const res = await fetch('/api/manager/activity-proofs/' + id, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { alert(data.error || 'Could not delete this photo.'); return; }
+  loadPhotoReview();
 }
 
 async function reviewProof(id, status, comment) {
@@ -1317,9 +1326,21 @@ async function loadClientsView() {
   const rows = await res.json();
   const tbody = document.querySelector('#clientsTable tbody');
   tbody.innerHTML = rows.length ? rows.map((c) => `
-    <tr><td>${c.name}</td><td>${c.notes || ''}</td><td><button class="btn btn-sm" onclick="openClientDetail(${c.id})">View</button></td></tr>`).join('')
+    <tr><td>${c.name}</td><td>${c.notes || ''}</td><td>
+      <button class="btn btn-sm" onclick="openClientDetail(${c.id})">View</button>
+      <button class="btn btn-sm" style="color:var(--red,#d92d20);" onclick="removeClientCompany(${c.id}, '${(c.name || '').replace(/'/g, "\\'")}')">Remove</button>
+    </td></tr>`).join('')
     : '<tr><td colspan="3" class="empty">No client companies yet.</td></tr>';
   document.getElementById('clientDetailPanel').style.display = 'none';
+}
+
+async function removeClientCompany(id, name) {
+  if (!confirm(`Remove ${name || 'this client company'}? Their past assignment history stays on record, but they'll no longer be available for new shifts, and their client portal logins will be deactivated.`)) return;
+  const res = await fetch('/api/manager/client-companies/' + id, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { alert(data.error || 'Could not remove this client company.'); return; }
+  assignmentClientsCache = [];
+  loadClientsView();
 }
 
 document.getElementById('newClientBtn').addEventListener('click', () => {
