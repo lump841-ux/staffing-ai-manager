@@ -118,12 +118,63 @@ async function main() {
     res = await request(port, 'GET', '/api/manager/workers', null, managerCookie);
     ok(res.status === 200 && res.json.length === 5, 'Manager roster lists all 5 workers');
 
+    console.log('\n── Add / remove sales team member ──');
+    res = await request(port, 'POST', '/api/manager/workers-new', { name: 'Smoke Test Worker', email: 'smoke.test.worker@summitstaffing.demo', password: 'temp123' }, managerCookie);
+    ok(res.status === 200 && res.json.id, 'Manager can add a sales team member');
+    const smokeWorkerId = res.json.id;
+
+    res = await request(port, 'GET', '/api/manager/workers', null, managerCookie);
+    ok(res.status === 200 && res.json.length === 6 && res.json.some((w) => w.id === smokeWorkerId), 'New sales team member appears on the roster');
+
+    res = await request(port, 'POST', '/api/manager/workers-new', { name: 'Dup', email: 'smoke.test.worker@summitstaffing.demo', password: 'temp123' }, managerCookie);
+    ok(res.status === 400, 'Adding a duplicate email is rejected with a clear error, not a silent failure');
+
+    res = await request(port, 'DELETE', `/api/manager/workers/${smokeWorkerId}`, null, workerCookie);
+    ok(res.status === 403, 'Worker cannot remove a sales team member');
+
+    res = await request(port, 'DELETE', `/api/manager/workers/${smokeWorkerId}`, null, managerCookie);
+    ok(res.status === 200 && res.json.ok === true, 'Manager can remove a sales team member');
+
+    res = await request(port, 'GET', '/api/manager/workers', null, managerCookie);
+    ok(res.status === 200 && res.json.length === 5 && !res.json.some((w) => w.id === smokeWorkerId), 'Removed sales team member drops off the roster immediately');
+
+    res = await request(port, 'DELETE', `/api/manager/workers/${smokeWorkerId}`, null, managerCookie);
+    ok(res.status === 404, 'Removing an already-removed sales team member returns 404, not a crash');
+
     console.log('\n── Category manager ──');
     res = await request(port, 'POST', '/api/manager/categories', { key: 'test_cat', label: 'Test category' }, managerCookie);
     ok(res.status === 200 && res.json.key === 'test_cat', 'Manager can add a custom category');
+    const testCategoryId = res.json.id;
 
     res = await request(port, 'POST', '/api/manager/categories', { key: 'x', label: 'x' }, workerCookie);
     ok(res.status === 403, 'Worker cannot add categories');
+
+    console.log('\n── Task assignment (category -> specific sales team members) ──');
+    res = await request(port, 'GET', '/api/manager/categories', null, managerCookie);
+    ok(res.status === 200 && res.json.every((c) => Array.isArray(c.assignedWorkerIds)), 'Every category includes an assignedWorkerIds array');
+    ok(res.json.find((c) => c.id === testCategoryId).assignedWorkerIds.length === 0, 'New category starts unassigned (applies to everyone)');
+
+    res = await request(port, 'GET', '/api/manager/workers', null, managerCookie);
+    const assignWorkerId = res.json[0].id;
+
+    res = await request(port, 'PUT', `/api/manager/categories/${testCategoryId}/assign`, { workerIds: [assignWorkerId] }, managerCookie);
+    ok(res.status === 200 && res.json.workerIds.includes(assignWorkerId), 'Manager can assign a category to a specific sales team member');
+
+    res = await request(port, 'GET', '/api/manager/categories', null, managerCookie);
+    ok(JSON.stringify(res.json.find((c) => c.id === testCategoryId).assignedWorkerIds) === JSON.stringify([assignWorkerId]), 'Assignment is reflected back on the category list');
+
+    res = await request(port, 'PUT', `/api/manager/categories/${testCategoryId}/assign`, { workerIds: [] }, managerCookie);
+    ok(res.status === 200, 'Manager can clear an assignment back to everyone');
+    res = await request(port, 'GET', '/api/manager/categories', null, managerCookie);
+    ok(res.json.find((c) => c.id === testCategoryId).assignedWorkerIds.length === 0, 'Cleared category shows no assignments again');
+
+    res = await request(port, 'PUT', `/api/manager/categories/${testCategoryId}/assign`, { workerIds: [999999] }, managerCookie);
+    ok(res.status === 200 && res.json.workerIds.length === 1, 'Assign accepts the request even with a bogus worker id (silently ignored)');
+    res = await request(port, 'GET', '/api/manager/categories', null, managerCookie);
+    ok(res.json.find((c) => c.id === testCategoryId).assignedWorkerIds.length === 0, 'Bogus worker id is not actually persisted as an assignment');
+
+    res = await request(port, 'PUT', `/api/manager/categories/${testCategoryId}/assign`, { workerIds: [assignWorkerId] }, workerCookie);
+    ok(res.status === 403, 'Worker cannot assign categories to themselves or others');
 
     console.log('\n── Manager time entry (strictly separate from worker portal) ──');
     res = await request(port, 'GET', '/api/manager/workers', null, managerCookie);

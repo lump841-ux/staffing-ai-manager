@@ -28,7 +28,6 @@
     <div class="nav-item" data-view="review">Needs Review</div>
     <div class="nav-item" data-view="photos">Photo Review</div>
     <div class="nav-item" data-view="friday">Friday Report</div>
-    <div class="nav-item" id="tasksNavItem" data-view="tasks" style="display:none;">Tasks</div>
     <div class="nav-item" data-view="ai">AI Assistant</div>
     <div class="nav-item" data-view="settings">Settings</div>
     <div class="nav-item" id="billingNavItem" data-view="billing" style="display:none;">Billing</div>
@@ -201,6 +200,15 @@
     <div id="view-workers" class="view" style="display:none;">
       <div class="page-header"><div><h1>Sales Team</h1><div class="sub">Roster and individual performance</div></div>
         <button class="btn btn-sm" id="addWorkerBtn">Add sales team member</button>
+      </div>
+      <div class="panel" id="addWorkerPanel" style="display:none;">
+        <p class="panel-title">Add sales team member</p>
+        <div class="field"><label>Name</label><input id="newWorkerName" placeholder="e.g. Jordan Diaz" /></div>
+        <div class="field"><label>Email</label><input id="newWorkerEmail" type="email" placeholder="jordan@example.com" /></div>
+        <div class="field"><label>Temporary password</label><input id="newWorkerPassword" type="text" placeholder="Temp1234" /></div>
+        <p id="addWorkerError" style="color:var(--red,#d92d20);font-size:13px;display:none;"></p>
+        <button class="btn btn-primary btn-sm" id="saveNewWorkerBtn">Save</button>
+        <button class="btn btn-sm" id="closeAddWorkerBtn">Cancel</button>
       </div>
       <div class="panel" id="rosterPanel">
         <table class="data-table" id="rosterTable">
@@ -515,26 +523,61 @@ async function loadWorkers() {
       </div></td>
       <td>${w.email}</td>
       <td>${w.submittedToday ? w.todayTotal : '<span class="pill red">Missing</span>'}</td>
-      <td><button class="btn btn-sm" onclick="openWorkerDetail(${w.id})">View</button></td>
+      <td>
+        <button class="btn btn-sm" onclick="openWorkerDetail(${w.id})">View</button>
+        <button class="btn btn-sm" style="color:var(--red,#d92d20);" onclick="removeWorker(${w.id}, '${(w.name || '').replace(/'/g, "\\'")}')">Remove</button>
+      </td>
     </tr>`).join('');
   document.getElementById('workerDetailPanel').style.display = 'none';
 }
 
-document.getElementById('addWorkerBtn').addEventListener('click', async () => {
-  const name = prompt('Worker name:');
-  if (!name) return;
-  const email = prompt('Worker email:');
-  if (!email) return;
-  const password = prompt('Temporary password:');
-  if (!password) return;
+// Add sales team member — an inline form panel rather than a chain of
+// window.prompt() dialogs. The old triple-prompt flow is unreliable in
+// some mobile/embedded browser contexts (prompt() can be blocked or
+// silently return null), which is very likely why this looked "broken."
+document.getElementById('addWorkerBtn').addEventListener('click', () => {
+  document.getElementById('newWorkerName').value = '';
+  document.getElementById('newWorkerEmail').value = '';
+  document.getElementById('newWorkerPassword').value = '';
+  document.getElementById('addWorkerError').style.display = 'none';
+  document.getElementById('addWorkerPanel').style.display = 'block';
+  document.getElementById('addWorkerPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+document.getElementById('closeAddWorkerBtn').addEventListener('click', () => {
+  document.getElementById('addWorkerPanel').style.display = 'none';
+});
+document.getElementById('saveNewWorkerBtn').addEventListener('click', async () => {
+  const name = document.getElementById('newWorkerName').value.trim();
+  const email = document.getElementById('newWorkerEmail').value.trim();
+  const password = document.getElementById('newWorkerPassword').value;
+  const errEl = document.getElementById('addWorkerError');
+  errEl.style.display = 'none';
+  if (!name || !email || !password) {
+    errEl.textContent = 'Name, email, and a temporary password are all required.';
+    errEl.style.display = 'block';
+    return;
+  }
   const res = await fetch('/api/manager/workers-new', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, email, password }),
   });
   const data = await res.json();
-  if (!res.ok) { alert(data.error || 'Could not add worker'); return; }
+  if (!res.ok) {
+    errEl.textContent = data.error || 'Could not add sales team member.';
+    errEl.style.display = 'block';
+    return;
+  }
+  document.getElementById('addWorkerPanel').style.display = 'none';
   loadWorkers();
 });
+
+async function removeWorker(id, name) {
+  if (!confirm(`Remove ${name || 'this sales team member'}? They'll no longer be able to log in, but their past daily reports stay on record.`)) return;
+  const res = await fetch('/api/manager/workers/' + id, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { alert(data.error || 'Could not remove sales team member.'); return; }
+  loadWorkers();
+}
 
 // ---- Temps ----
 // Internally still the "temp" account type (kept as-is under the

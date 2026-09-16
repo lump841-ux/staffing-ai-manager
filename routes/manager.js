@@ -421,6 +421,28 @@ router.post('/workers-new', async (req, res) => {
   }
 });
 
+// Remove a sales team member. Soft-delete (active = FALSE) rather than a
+// hard DELETE — their historical daily reports, goals, and task
+// assignments stay intact for past reporting, they just drop off the
+// roster and can no longer log in. getWorkers() and getActiveCategories'
+// assignment lookups already filter to active = TRUE, so no other change
+// is needed for them to disappear from the UI.
+router.delete('/workers/:id', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const workerId = Number(req.params.id);
+  const { rows } = await db.query(
+    `UPDATE users SET active = FALSE
+     WHERE id = $1 AND organization_id = $2 AND role = 'worker'
+     RETURNING id`,
+    [workerId, orgId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Sales team member not found' });
+  // Clear any task assignments pointing at them so a task doesn't quietly
+  // stay narrowed to a person who can no longer log in.
+  await db.query(`DELETE FROM category_assignments WHERE worker_id = $1`, [workerId]);
+  res.json({ ok: true });
+});
+
 // ════════════════════════════════════════════════════════════════════
 // ASSIGNMENT COMMUNICATION NETWORK — manager/owner side.
 // Client companies, assignments, the "what needs attention?" feed
