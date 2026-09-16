@@ -60,6 +60,18 @@ CREATE TABLE IF NOT EXISTS worker_goals (
   UNIQUE(worker_id, category_id)
 );
 
+-- Which sales team members (the "worker" role) a given task/category is
+-- assigned to. Independent of worker_goals' numeric daily_target — this is
+-- just "does this person work this task at all." Manager/owner-set only.
+CREATE TABLE IF NOT EXISTS category_assignments (
+  id SERIAL PRIMARY KEY,
+  category_id INTEGER NOT NULL REFERENCES activity_categories(id),
+  worker_id INTEGER NOT NULL REFERENCES users(id),
+  assigned_by_user_id INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(category_id, worker_id)
+);
+
 -- The core daily submission (one per worker per day).
 CREATE TABLE IF NOT EXISTS daily_reports (
   id SERIAL PRIMARY KEY,

@@ -107,12 +107,54 @@ router.put('/workers/:id/goals', async (req, res) => {
 // ---- Category manager ----
 
 router.get('/categories', async (req, res) => {
+  const orgId = req.session.user.organizationId;
   const { rows } = await db.query(
     `SELECT id, key, label, description, sort_order, is_active FROM activity_categories
      WHERE organization_id = $1 ORDER BY sort_order, id`,
-    [req.session.user.organizationId]
+    [orgId]
   );
-  res.json(rows);
+  const { rows: assignRows } = await db.query(
+    `SELECT ca.category_id, ca.worker_id FROM category_assignments ca
+     JOIN activity_categories ac ON ac.id = ca.category_id
+     WHERE ac.organization_id = $1`,
+    [orgId]
+  );
+  const assignedByCategory = {};
+  for (const a of assignRows) {
+    if (!assignedByCategory[a.category_id]) assignedByCategory[a.category_id] = [];
+    assignedByCategory[a.category_id].push(a.worker_id);
+  }
+  res.json(rows.map((r) => ({ ...r, assignedWorkerIds: assignedByCategory[r.id] || [] })));
+});
+
+// Set which sales team members (worker role) a task/category applies to.
+// Replaces the full assignment set for this category each call.
+router.put('/categories/:id/assign', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const categoryId = Number(req.params.id);
+  const { workerIds } = req.body || {};
+  if (!Array.isArray(workerIds)) return res.status(400).json({ error: 'workerIds array is required' });
+
+  const { rows: catRows } = await db.query(
+    `SELECT id FROM activity_categories WHERE id = $1 AND organization_id = $2`,
+    [categoryId, orgId]
+  );
+  if (!catRows.length) return res.status(404).json({ error: 'Category not found' });
+
+  await db.query(`DELETE FROM category_assignments WHERE category_id = $1`, [categoryId]);
+  for (const workerId of workerIds) {
+    const { rows: workerRows } = await db.query(
+      `SELECT id FROM users WHERE id = $1 AND organization_id = $2 AND role = 'worker'`,
+      [workerId, orgId]
+    );
+    if (!workerRows.length) continue;
+    await db.query(
+      `INSERT INTO category_assignments (category_id, worker_id, assigned_by_user_id)
+       VALUES ($1, $2, $3) ON CONFLICT (category_id, worker_id) DO NOTHING`,
+      [categoryId, workerId, req.session.user.id]
+    );
+  }
+  res.json({ ok: true, workerIds });
 });
 
 router.post('/categories', async (req, res) => {

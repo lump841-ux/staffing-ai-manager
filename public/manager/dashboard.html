@@ -22,9 +22,9 @@
     <div class="nav-item" id="assignmentsNavItem" data-view="assignments" style="display:none;">Assignments</div>
     <div class="nav-item" id="clientsNavItem" data-view="clients" style="display:none;">Client Companies</div>
     <div class="nav-item" data-view="week">This Week</div>
-    <div class="nav-item" data-view="workers">Recruiters</div>
-    <div class="nav-item" data-view="categories">Categories</div>
-    <div class="nav-item" data-view="time">Time Entry</div>
+    <div class="nav-item" data-view="workers">Sales Team</div>
+    <div class="nav-item" data-view="categories">Task</div>
+    <div class="nav-item" id="timeNavItem" data-view="time" style="display:none;">Time Entry</div>
     <div class="nav-item" data-view="review">Needs Review</div>
     <div class="nav-item" data-view="photos">Photo Review</div>
     <div class="nav-item" data-view="friday">Friday Report</div>
@@ -199,8 +199,8 @@
     </div>
 
     <div id="view-workers" class="view" style="display:none;">
-      <div class="page-header"><div><h1>Recruiters</h1><div class="sub">Roster and individual performance</div></div>
-        <button class="btn btn-sm" id="addWorkerBtn">Add recruiter</button>
+      <div class="page-header"><div><h1>Sales Team</h1><div class="sub">Roster and individual performance</div></div>
+        <button class="btn btn-sm" id="addWorkerBtn">Add sales team member</button>
       </div>
       <div class="panel" id="rosterPanel">
         <table class="data-table" id="rosterTable">
@@ -218,23 +218,29 @@
     </div>
 
     <div id="view-categories" class="view" style="display:none;">
-      <div class="page-header"><div><h1>Categories</h1><div class="sub">What workers report on every day — fully customizable</div></div></div>
+      <div class="page-header"><div><h1>Task</h1><div class="sub">What the sales team reports on every day — fully customizable, and assignable to specific sales team members</div></div></div>
       <div class="panel">
         <table class="data-table" id="categoriesTable">
-          <thead><tr><th>Label</th><th>Key</th><th>Active</th><th></th></tr></thead>
+          <thead><tr><th>Label</th><th>Key</th><th>Active</th><th>Assigned to</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
+      <div class="panel" id="catAssignPanel" style="display:none;">
+        <p class="panel-title" id="catAssignTitle"></p>
+        <div id="catAssignList"></div>
+        <button class="btn btn-primary btn-sm" id="saveCatAssignBtn" style="margin-top:10px;">Save assignment</button>
+        <button class="btn btn-sm" id="closeCatAssignBtn" style="margin-top:10px;">Close</button>
+      </div>
       <div class="panel">
-        <p class="panel-title">Add a category</p>
+        <p class="panel-title">Add a task</p>
         <div class="field"><label>Label</label><input id="newCatLabel" placeholder="e.g. Reference checks" /></div>
         <div class="field"><label>Description (optional)</label><input id="newCatDesc" /></div>
-        <button class="btn btn-primary btn-sm" id="addCatBtn">Add category</button>
+        <button class="btn btn-primary btn-sm" id="addCatBtn">Add task</button>
       </div>
     </div>
 
     <div id="view-time" class="view" style="display:none;">
-      <div class="page-header"><div><h1>Time entry</h1><div class="sub">Lead-only. Recruiters cannot view or edit this.</div></div></div>
+      <div class="page-header"><div><h1>Time entry</h1><div class="sub">Lead-only. Sales team cannot view or edit this.</div></div></div>
       <div class="panel">
         <p class="panel-title">Add a time entry</p>
         <div class="field"><label>Worker</label><select id="timeWorkerSelect"></select></div>
@@ -320,9 +326,9 @@
     <div id="view-settings" class="view" style="display:none;">
       <div class="page-header"><div><h1>Settings</h1><div class="sub">Agency-wide options</div></div></div>
       <div class="panel">
-        <p class="panel-title">Recruiter self clock-in</p>
+        <p class="panel-title">Sales team self clock-in</p>
         <p style="font-size:14px;color:var(--text-2,#667085);margin:0 0 12px;max-width:520px;">
-          Off by default. Turn this on to let recruiters clock themselves in and out from their own dashboard —
+          Off by default. Turn this on to let sales team members clock themselves in and out from their own dashboard —
           their clock times show up on their own work history and are visible to you in their record. This is
           separate from your lead-entered Time Entry, which always stays under your control.
         </p>
@@ -611,18 +617,31 @@ document.getElementById('saveGoalsBtn').addEventListener('click', async () => {
   if (res.ok) alert('Goals saved.');
 });
 
-// ---- Categories ----
+// ---- Task (activity categories) ----
 async function loadCategories() {
+  if (!workersCache.length) {
+    const wres = await fetch('/api/manager/workers');
+    workersCache = await wres.json();
+  }
   const res = await fetch('/api/manager/categories');
   categoriesCache = await res.json();
   const tbody = document.querySelector('#categoriesTable tbody');
-  tbody.innerHTML = categoriesCache.map((c) => `
+  tbody.innerHTML = categoriesCache.map((c) => {
+    const assigned = c.assignedWorkerIds || [];
+    const names = assigned.map((id) => (workersCache.find((w) => w.id === id) || {}).name).filter(Boolean);
+    const assignedText = assigned.length ? names.join(', ') : '<span style="color:var(--text-2,#667085);">Everyone</span>';
+    return `
     <tr>
       <td>${c.label}</td>
       <td><code>${c.key}</code></td>
       <td>${c.is_active ? '<span class="pill green">Active</span>' : '<span class="pill gray">Inactive</span>'}</td>
-      <td><button class="btn btn-sm" onclick="toggleCategory(${c.id}, ${!c.is_active})">${c.is_active ? 'Deactivate' : 'Activate'}</button></td>
-    </tr>`).join('');
+      <td>${assignedText}</td>
+      <td>
+        <button class="btn btn-sm" onclick="openCatAssign(${c.id})">Assign</button>
+        <button class="btn btn-sm" onclick="toggleCategory(${c.id}, ${!c.is_active})">${c.is_active ? 'Deactivate' : 'Activate'}</button>
+      </td>
+    </tr>`;
+  }).join('');
 }
 
 async function toggleCategory(id, isActive) {
@@ -632,6 +651,42 @@ async function toggleCategory(id, isActive) {
   });
   loadCategories();
 }
+
+// Which sales team members (workers) a task applies to. Defaults to
+// "everyone" when nothing is assigned yet — assigning specific people
+// narrows it to just them.
+let catAssignId = null;
+function openCatAssign(categoryId) {
+  const cat = categoriesCache.find((c) => c.id === categoryId);
+  if (!cat) return;
+  catAssignId = categoryId;
+  document.getElementById('catAssignTitle').textContent = 'Assign "' + cat.label + '" to specific sales team members';
+  const assigned = new Set(cat.assignedWorkerIds || []);
+  document.getElementById('catAssignList').innerHTML = workersCache.map((w) => `
+    <label style="display:flex;align-items:center;gap:10px;font-size:14px;padding:6px 0;cursor:pointer;">
+      <input type="checkbox" class="catAssignCheckbox" value="${w.id}" ${assigned.has(w.id) ? 'checked' : ''} style="width:16px;height:16px;" />
+      <span>${w.name}</span>
+    </label>`).join('') || '<p class="empty">No sales team members yet.</p>';
+  document.getElementById('catAssignPanel').style.display = 'block';
+  document.getElementById('catAssignPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+document.getElementById('closeCatAssignBtn').addEventListener('click', () => {
+  document.getElementById('catAssignPanel').style.display = 'none';
+  catAssignId = null;
+});
+
+document.getElementById('saveCatAssignBtn').addEventListener('click', async () => {
+  if (!catAssignId) return;
+  const workerIds = Array.from(document.querySelectorAll('.catAssignCheckbox:checked')).map((el) => Number(el.value));
+  await fetch(`/api/manager/categories/${catAssignId}/assign`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workerIds }),
+  });
+  document.getElementById('catAssignPanel').style.display = 'none';
+  catAssignId = null;
+  loadCategories();
+});
 
 document.getElementById('addCatBtn').addEventListener('click', async () => {
   const label = document.getElementById('newCatLabel').value.trim();
