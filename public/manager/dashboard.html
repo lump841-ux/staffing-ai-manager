@@ -28,7 +28,7 @@
     <div class="nav-item" data-view="review">Needs Review</div>
     <div class="nav-item" data-view="photos">Photo Review</div>
     <div class="nav-item" data-view="friday">Friday Report</div>
-    <div class="nav-item" data-view="tasks">Tasks</div>
+    <div class="nav-item" id="tasksNavItem" data-view="tasks" style="display:none;">Tasks</div>
     <div class="nav-item" data-view="ai">AI Assistant</div>
     <div class="nav-item" data-view="settings">Settings</div>
     <div class="nav-item" id="billingNavItem" data-view="billing" style="display:none;">Billing</div>
@@ -302,27 +302,6 @@
       </div>
     </div>
 
-    <div id="view-tasks" class="view" style="display:none;">
-      <div class="page-header"><div><h1>Task center</h1><div class="sub">Tell the AI what to remember, or add manually</div></div></div>
-      <div class="panel">
-        <p class="panel-title">Quick add (natural language)</p>
-        <div style="display:flex;gap:8px;">
-          <input id="taskParseInput" placeholder="Remind me to talk to Maria tomorrow" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-md);" />
-          <button class="btn btn-primary btn-sm" id="taskParseBtn">Add</button>
-        </div>
-      </div>
-      <div class="panel">
-        <p class="section-label">Today</p>
-        <div id="tasksToday"></div>
-        <p class="section-label" style="margin-top:16px;">Overdue</p>
-        <div id="tasksOverdue"></div>
-        <p class="section-label" style="margin-top:16px;">Upcoming</p>
-        <div id="tasksUpcoming"></div>
-        <p class="section-label" style="margin-top:16px;">Completed</p>
-        <div id="tasksCompleted"></div>
-      </div>
-    </div>
-
     <div id="view-settings" class="view" style="display:none;">
       <div class="page-header"><div><h1>Settings</h1><div class="sub">Agency-wide options</div></div></div>
       <div class="panel">
@@ -379,6 +358,24 @@
           <button class="btn btn-primary" id="aiAskBtn">Ask</button>
         </div>
       </div>
+
+      <div class="panel" style="margin-top:20px;">
+        <p class="panel-title">Task center — tell the AI what to remember, or add manually</p>
+        <div style="display:flex;gap:8px;">
+          <input id="taskParseInput" placeholder="Remind me to talk to Maria tomorrow" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-md);" />
+          <button class="btn btn-primary btn-sm" id="taskParseBtn">Add</button>
+        </div>
+      </div>
+      <div class="panel">
+        <p class="section-label">Today</p>
+        <div id="tasksToday"></div>
+        <p class="section-label" style="margin-top:16px;">Overdue</p>
+        <div id="tasksOverdue"></div>
+        <p class="section-label" style="margin-top:16px;">Upcoming</p>
+        <div id="tasksUpcoming"></div>
+        <p class="section-label" style="margin-top:16px;">Completed</p>
+        <div id="tasksCompleted"></div>
+      </div>
     </div>
 
   </div>
@@ -401,13 +398,13 @@ async function loadMe() {
   if (me.role === 'owner') {
     document.getElementById('billingNavItem').style.display = 'block';
     // Temp/assignment/client-company data (Assignment Communication
-    // Network) is owner-only for now — Leads and Recruiters only see
-    // recruiter/workforce features. Could become a paid upgrade later.
+    // Network) is owner-only for now — Leads and Sales Team only see
+    // sales/workforce features. Could become a paid upgrade later.
     document.getElementById('attentionNavItem').style.display = 'block';
-    document.getElementById('assignmentsNavItem').style.display = 'block';
     document.getElementById('clientsNavItem').style.display = 'block';
-    // Temps nav item is removed entirely for now (owner included) — see
-    // requireOwner gate in routes/manager.js for the matching backend lock.
+    // Temps and Assignments nav items are removed entirely for now (owner
+    // included) — see requireOwner gate in routes/manager.js for the
+    // matching backend lock (Assignments backend route is unaffected).
   }
 }
 
@@ -425,7 +422,7 @@ function switchView(view) {
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
   document.getElementById('view-' + view).style.display = 'block';
   document.querySelector('.nav-item[data-view="' + view + '"]').classList.add('active');
-  const loaders = { today: loadToday, week: loadWeek, workers: loadWorkers, categories: loadCategories, time: loadTime, review: loadReview, photos: loadPhotoReview, friday: loadFriday, tasks: loadTasks, ai: loadAI, settings: loadSettings, billing: loadBilling, attention: loadAttention, assignments: loadAssignmentsView, clients: loadClientsView, fieldworkers: loadFieldWorkers };
+  const loaders = { today: loadToday, week: loadWeek, workers: loadWorkers, categories: loadCategories, time: loadTime, review: loadReview, photos: loadPhotoReview, friday: loadFriday, ai: loadAIAndTasks, settings: loadSettings, billing: loadBilling, attention: loadAttention, assignments: loadAssignmentsView, clients: loadClientsView, fieldworkers: loadFieldWorkers };
   if (loaders[view]) loaders[view]();
 }
 
@@ -874,6 +871,13 @@ document.getElementById('selfClockinToggle').addEventListener('change', async (e
 // ---- AI assistant ----
 async function loadAI() {
   document.getElementById('aiModeNote').textContent = 'Grounded in your real data. Add an API key later for fully open-ended natural language.';
+}
+
+// The Task Center now lives inside the AI Assistant tab (freed up the word
+// "Task" for what used to be called Categories). Load both when this tab opens.
+async function loadAIAndTasks() {
+  await loadAI();
+  await loadTasks();
 }
 
 function appendAIMessage(role, content) {
