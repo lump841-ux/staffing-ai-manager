@@ -85,6 +85,10 @@ async function main() {
     ok(res.status === 200 && res.json.user.role === 'temp', 'Field worker logs in successfully, separate account type from the recruiter worker');
     const tempCookie = getCookie(res);
 
+    res = await request(port, 'POST', '/api/auth/login', { email: 'owner@summitstaffing.demo', password: 'owner123' });
+    ok(res.status === 200 && res.json.user.role === 'owner', 'Owner logs in successfully');
+    const ownerCookie = getCookie(res);
+
     res = await request(port, 'GET', '/api/manager/today', null, workerCookie);
     ok(res.status === 403, 'Worker is forbidden from manager/today');
 
@@ -133,12 +137,15 @@ async function main() {
     ok(res.status === 403, 'Worker cannot remove a sales team member');
 
     res = await request(port, 'DELETE', `/api/manager/workers/${smokeWorkerId}`, null, managerCookie);
-    ok(res.status === 200 && res.json.ok === true, 'Manager can remove a sales team member');
+    ok(res.status === 403, 'Manager (Lead) cannot remove a sales team member — owner only');
+
+    res = await request(port, 'DELETE', `/api/manager/workers/${smokeWorkerId}`, null, ownerCookie);
+    ok(res.status === 200 && res.json.ok === true, 'Owner can remove a sales team member');
 
     res = await request(port, 'GET', '/api/manager/workers', null, managerCookie);
     ok(res.status === 200 && res.json.length === 5 && !res.json.some((w) => w.id === smokeWorkerId), 'Removed sales team member drops off the roster immediately');
 
-    res = await request(port, 'DELETE', `/api/manager/workers/${smokeWorkerId}`, null, managerCookie);
+    res = await request(port, 'DELETE', `/api/manager/workers/${smokeWorkerId}`, null, ownerCookie);
     ok(res.status === 404, 'Removing an already-removed sales team member returns 404, not a crash');
 
     console.log('\n── Category manager ──');
@@ -175,6 +182,19 @@ async function main() {
 
     res = await request(port, 'PUT', `/api/manager/categories/${testCategoryId}/assign`, { workerIds: [assignWorkerId] }, workerCookie);
     ok(res.status === 403, 'Worker cannot assign categories to themselves or others');
+
+    console.log('\n── Delete task/category ──');
+    res = await request(port, 'DELETE', `/api/manager/categories/${testCategoryId}`, null, workerCookie);
+    ok(res.status === 403, 'Worker cannot delete a task');
+
+    res = await request(port, 'DELETE', `/api/manager/categories/${testCategoryId}`, null, managerCookie);
+    ok(res.status === 200 && res.json.ok === true, 'Manager can delete an unused task with no recorded history');
+
+    res = await request(port, 'GET', '/api/manager/categories', null, managerCookie);
+    ok(res.status === 200 && !res.json.some((c) => c.id === testCategoryId), 'Deleted task no longer appears in the list');
+
+    res = await request(port, 'DELETE', `/api/manager/categories/${testCategoryId}`, null, managerCookie);
+    ok(res.status === 404, 'Deleting an already-deleted task returns 404, not a crash');
 
     console.log('\n── Manager time entry (strictly separate from worker portal) ──');
     res = await request(port, 'GET', '/api/manager/workers', null, managerCookie);
@@ -227,10 +247,6 @@ async function main() {
 
     res = await request(port, 'PUT', '/api/manager/settings', { selfClockinEnabled: true }, managerCookie);
     ok(res.status === 403, 'Non-owner manager cannot change the self clock-in setting');
-
-    res = await request(port, 'POST', '/api/auth/login', { email: 'owner@summitstaffing.demo', password: 'owner123' });
-    ok(res.status === 200 && res.json.user.role === 'owner', 'Owner logs in successfully');
-    const ownerCookie = getCookie(res);
 
     res = await request(port, 'PUT', '/api/manager/settings', { selfClockinEnabled: true }, ownerCookie);
     ok(res.status === 200 && res.json.selfClockinEnabled === true, 'Owner can turn self clock-in on');

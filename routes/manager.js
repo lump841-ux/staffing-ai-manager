@@ -184,6 +184,38 @@ router.put('/categories/:id', async (req, res) => {
   res.json(rows[0]);
 });
 
+// Permanently remove a task/category. Refuses if any daily report has ever
+// recorded a number against it — deleting that would quietly corrupt past
+// weeks' totals and the Friday report. Deactivate (PUT isActive:false above)
+// is the right move for a task that's been used before but should stop
+// showing up going forward; this DELETE is for cleaning up an unused or
+// mistakenly-created one.
+router.delete('/categories/:id', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const categoryId = Number(req.params.id);
+
+  const { rows: catRows } = await db.query(
+    `SELECT id FROM activity_categories WHERE id = $1 AND organization_id = $2`,
+    [categoryId, orgId]
+  );
+  if (!catRows.length) return res.status(404).json({ error: 'Category not found' });
+
+  const { rows: usedRows } = await db.query(
+    `SELECT 1 FROM daily_report_values WHERE category_id = $1 LIMIT 1`,
+    [categoryId]
+  );
+  if (usedRows.length) {
+    return res.status(409).json({
+      error: 'This task already has daily numbers recorded against it, so deleting it would erase past history. Use Deactivate instead to hide it going forward.',
+    });
+  }
+
+  await db.query(`DELETE FROM category_assignments WHERE category_id = $1`, [categoryId]);
+  await db.query(`DELETE FROM worker_goals WHERE category_id = $1`, [categoryId]);
+  await db.query(`DELETE FROM activity_categories WHERE id = $1 AND organization_id = $2`, [categoryId, orgId]);
+  res.json({ ok: true });
+});
+
 // ---- Manager-only time entry ----
 
 router.get('/time-entries', async (req, res) => {
@@ -421,13 +453,15 @@ router.post('/workers-new', async (req, res) => {
   }
 });
 
-// Remove a sales team member. Soft-delete (active = FALSE) rather than a
-// hard DELETE — their historical daily reports, goals, and task
-// assignments stay intact for past reporting, they just drop off the
-// roster and can no longer log in. getWorkers() and getActiveCategories'
-// assignment lookups already filter to active = TRUE, so no other change
-// is needed for them to disappear from the UI.
-router.delete('/workers/:id', async (req, res) => {
+// Remove a sales team member. Owner-only — a Lead can add sales team
+// members (below) but removing one is reserved for the agency owner.
+// Soft-delete (active = FALSE) rather than a hard DELETE — their
+// historical daily reports, goals, and task assignments stay intact for
+// past reporting, they just drop off the roster and can no longer log
+// in. getWorkers() and getActiveCategories' assignment lookups already
+// filter to active = TRUE, so no other change is needed for them to
+// disappear from the UI.
+router.delete('/workers/:id', requireOwner, async (req, res) => {
   const orgId = req.session.user.organizationId;
   const workerId = Number(req.params.id);
   const { rows } = await db.query(
