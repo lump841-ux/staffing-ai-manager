@@ -525,7 +525,7 @@ async function loadWorkers() {
       <td>${w.submittedToday ? w.todayTotal : '<span class="pill red">Missing</span>'}</td>
       <td>
         <button class="btn btn-sm" onclick="openWorkerDetail(${w.id})">View</button>
-        ${myRole === 'owner' ? `<button class="btn btn-sm" style="color:var(--red,#d92d20);" onclick="removeWorker(${w.id}, '${(w.name || '').replace(/'/g, "\\'")}')">Remove</button>` : ''}
+        <button class="btn btn-sm" style="color:var(--red,#d92d20);" onclick="removeWorker(${w.id}, '${(w.name || '').replace(/'/g, "\\'")}')">Remove</button>
       </td>
     </tr>`).join('');
   document.getElementById('workerDetailPanel').style.display = 'none';

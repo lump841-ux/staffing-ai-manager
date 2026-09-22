@@ -466,15 +466,16 @@ router.post('/workers-new', async (req, res) => {
   }
 });
 
-// Remove a sales team member. Owner-only — a Lead can add sales team
-// members (below) but removing one is reserved for the agency owner.
+// Remove a sales team member. Open to both the agency owner and a
+// branch Lead ("manager" role) — the router-level requireRole('manager',
+// 'owner') above already covers that, so no extra gate is needed here.
 // Soft-delete (active = FALSE) rather than a hard DELETE — their
 // historical daily reports, goals, and task assignments stay intact for
 // past reporting, they just drop off the roster and can no longer log
 // in. getWorkers() and getActiveCategories' assignment lookups already
 // filter to active = TRUE, so no other change is needed for them to
 // disappear from the UI.
-router.delete('/workers/:id', requireOwner, async (req, res) => {
+router.delete('/workers/:id', async (req, res) => {
   const orgId = req.session.user.organizationId;
   const workerId = Number(req.params.id);
   const { rows } = await db.query(
