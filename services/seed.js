@@ -53,9 +53,90 @@ async function seedRandomDay(orgId, workerId, categories, date, rand, qualityFac
   return { reportId, values };
 }
 
+// Deletes the fake sales team ("...@summitstaffing.demo" worker/temp
+// accounts), their report history, the demo client company/assignment,
+// and the demo manager task — in FK-safe order. Idempotent: no-ops once
+// nothing demo-shaped is left. This runs as a startup safety net so that
+// if the app was ever booted against a fresh real Postgres database
+// before this file existed (which happened once), the fake roster gets
+// cleaned out automatically instead of sitting there forever.
+// pg-mem (used for local/smoke runs) doesn't reliably match `= ANY($1::int[])`
+// against a parameterized array, so ids — always our own trusted integers
+// from a prior SELECT, never user input — are inlined as a plain IN (...)
+// list, which behaves correctly on both pg-mem and real Postgres.
+function inClause(ids) {
+  return ids.map((id) => Number(id)).join(',');
+}
+
+async function cleanupDemoContent(orgId) {
+  const { rows: demoWorkers } = await db.query(
+    `SELECT id FROM users WHERE organization_id = $1 AND role IN ('worker','temp') AND email LIKE '%@summitstaffing.demo'`,
+    [orgId]
+  );
+  const demoWorkerIds = demoWorkers.map((r) => r.id);
+  if (demoWorkerIds.length) {
+    const ids = inClause(demoWorkerIds);
+    await db.query(
+      `DELETE FROM discrepancies WHERE daily_report_id IN (SELECT id FROM daily_reports WHERE worker_id IN (${ids}))`
+    );
+    await db.query(
+      `DELETE FROM daily_report_values WHERE daily_report_id IN (SELECT id FROM daily_reports WHERE worker_id IN (${ids}))`
+    );
+    await db.query(`DELETE FROM daily_reports WHERE worker_id IN (${ids})`);
+    await db.query(`DELETE FROM worker_goals WHERE worker_id IN (${ids})`);
+    await db.query(`DELETE FROM manager_tasks WHERE related_worker_id IN (${ids})`);
+    await db.query(
+      `DELETE FROM event_acknowledgments WHERE event_id IN (SELECT id FROM assignment_events WHERE assignment_id IN (SELECT id FROM assignments WHERE worker_id IN (${ids})))`
+    );
+    await db.query(
+      `DELETE FROM event_recipients WHERE event_id IN (SELECT id FROM assignment_events WHERE assignment_id IN (SELECT id FROM assignments WHERE worker_id IN (${ids})))`
+    );
+    await db.query(
+      `DELETE FROM notifications WHERE assignment_id IN (SELECT id FROM assignments WHERE worker_id IN (${ids}))`
+    );
+    await db.query(
+      `DELETE FROM assignment_events WHERE assignment_id IN (SELECT id FROM assignments WHERE worker_id IN (${ids}))`
+    );
+    await db.query(`DELETE FROM assignments WHERE worker_id IN (${ids})`);
+  }
+
+  const { rows: demoCompanies } = await db.query(
+    `SELECT id FROM client_companies WHERE organization_id = $1 AND name = 'Meridian Distribution Center'`,
+    [orgId]
+  );
+  const demoCompanyIds = demoCompanies.map((r) => r.id);
+  if (demoCompanyIds.length) {
+    const ids = inClause(demoCompanyIds);
+    await db.query(`DELETE FROM assignments WHERE client_company_id IN (${ids})`);
+    await db.query(`DELETE FROM client_contact_org_links WHERE client_company_id IN (${ids})`);
+    await db.query(`DELETE FROM client_contacts WHERE client_company_id IN (${ids})`);
+    await db.query(`DELETE FROM client_locations WHERE client_company_id IN (${ids})`);
+    await db.query(`DELETE FROM client_companies WHERE id IN (${ids})`);
+  }
+
+  if (demoWorkerIds.length || demoCompanyIds.length) {
+    await db.query(`DELETE FROM agency_contact_rules WHERE organization_id = $1`, [orgId]);
+  }
+  if (demoWorkerIds.length) {
+    await db.query(`DELETE FROM users WHERE id IN (${inClause(demoWorkerIds)})`);
+    console.log(`Cleaned up ${demoWorkerIds.length} demo sales team / temp account(s) and their history from the live database.`);
+  }
+}
+
 async function run() {
+  // Demo sales team members, report history, client company, assignment,
+  // and manager task are only seeded against the in-memory pg-mem adapter
+  // (local dev / smoke tests). Against a real Postgres database (production),
+  // we still create the org + owner/manager logins + default task categories
+  // so the app is immediately usable, but leave the roster empty so the
+  // real agency owner can add their own real sales team.
+  const seedDemoContent = db.isUsingMemory() || process.env.SEED_DEMO_DATA === 'true';
+
   const { rows: orgCheck } = await db.query(`SELECT id FROM organizations LIMIT 1`);
-  if (orgCheck.length) return; // already seeded
+  if (orgCheck.length) {
+    if (!seedDemoContent) await cleanupDemoContent(orgCheck[0].id);
+    return; // already seeded
+  }
 
   // Demo agency on the simple Starter tier — $299/month, $500 onboarding
   // fee waived by the Super Admin.
@@ -117,9 +198,12 @@ async function run() {
     categoryIds.push(rows[0]);
   }
 
+  const workerIds = [];
+  const tempIds = [];
+
+  if (seedDemoContent) {
   const workerHash = await bcrypt.hash('worker123', 10);
   const workerNames = ['Sarah Chen', 'David Kim', 'Maria Lopez', 'James Patterson', 'Nina Ortiz'];
-  const workerIds = [];
   for (const name of workerNames) {
     const email = name.toLowerCase().replace(/\s+/g, '.') + '@summitstaffing.demo';
     const { rows } = await db.query(
@@ -247,7 +331,6 @@ async function run() {
     { name: 'Marcus Webb', phone: '555-0198' },
     { name: 'Renee Alvarez', phone: '555-0173' },
   ];
-  const tempIds = [];
   for (const fw of tempRoster) {
     const email = fw.name.toLowerCase().replace(/\s+/g, '.') + '@summitstaffing.demo';
     const { rows } = await db.query(
@@ -269,17 +352,26 @@ async function run() {
      VALUES ($1,$2,$3,$4,'Receiving',$5,$6,$7,'08:00','16:30','First day on this placement — badge is at the front desk.',$8)`,
     [orgId, marcusId, clientCompanyId, clientLocationId, supervisorContactId, managerId, today, managerId]
   );
+  } // end if (seedDemoContent)
 
-  console.log('Seeded demo organization "Twanova — Staffing Solutions" (Starter plan).');
+  console.log(seedDemoContent
+    ? 'Seeded demo organization "Twanova — Staffing Solutions" (Starter plan) with demo content.'
+    : 'Seeded organization "Twanova — Staffing Solutions" (structure only — no demo sales team, reports, or assignments).');
   console.log('Owner login (billing dashboard): owner@summitstaffing.demo / owner123');
   console.log('Manager login: manager@summitstaffing.demo / manager123');
-  console.log('Worker (recruiter) logins (any of):');
-  for (const w of workerIds) console.log(`  ${w.email} / worker123  (${w.name})`);
-  console.log('Temp logins (/temp/login.html) — separate account type, used only for assignments:');
-  for (const fw of tempIds) console.log(`  ${fw.email} / temp123  (${fw.name})`);
+  if (workerIds.length) {
+    console.log('Worker (recruiter) logins (any of):');
+    for (const w of workerIds) console.log(`  ${w.email} / worker123  (${w.name})`);
+  }
+  if (tempIds.length) {
+    console.log('Temp logins (/temp/login.html) — separate account type, used only for assignments:');
+    for (const fw of tempIds) console.log(`  ${fw.email} / temp123  (${fw.name})`);
+  }
   console.log('Super Admin login (/platform-admin/login.html): admin@twanova.platform / platform123');
-  console.log('Client company login (/client/login.html): supervisor@meridiandc.demo / client123  (Priya Nair, Meridian Distribution Center)');
-  console.log(`Marcus Webb (temp) has a live assignment today at Meridian Distribution Center (8:00am-4:30pm).`);
+  if (seedDemoContent) {
+    console.log('Client company login (/client/login.html): supervisor@meridiandc.demo / client123  (Priya Nair, Meridian Distribution Center)');
+    console.log(`Marcus Webb (temp) has a live assignment today at Meridian Distribution Center (8:00am-4:30pm).`);
+  }
 }
 
 module.exports = { run, DEFAULT_CATEGORIES, GOALS };
