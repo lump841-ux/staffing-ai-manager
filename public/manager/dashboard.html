@@ -678,6 +678,7 @@ async function loadCategories() {
       <td>${assignedText}</td>
       <td>
         <button class="btn btn-sm" onclick="openCatAssign(${c.id})">Assign</button>
+        <button class="btn btn-sm" onclick="toggleCategory(${c.id}, ${c.is_active ? 'false' : 'true'})">${c.is_active ? 'Deactivate' : 'Activate'}</button>
         <button class="btn btn-sm" style="color:var(--red,#d92d20);" onclick="deleteCategory(${c.id}, '${(c.label || '').replace(/'/g, "\\'")}')">Delete</button>
       </td>
     </tr>`;
