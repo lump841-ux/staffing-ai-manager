@@ -247,7 +247,17 @@
             <strong style="color:var(--navy);">Profile information</strong>
             <button class="btn btn-sm" id="editWorkerProfileBtn">Edit profile</button>
           </div>
-          <div id="workerProfileSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;font-size:14px;"></div>
+          <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px;">
+            <div style="text-align:center;">
+              <div id="workerProfilePhoto" class="worker-profile-photo">—</div>
+              <label class="btn btn-sm" style="margin-top:8px;cursor:pointer;">
+                Upload / Change Photo
+                <input id="managerWorkerPhotoInput" type="file" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+              </label>
+              <p class="error-msg" id="managerWorkerPhotoErr" style="margin-top:6px;"></p>
+            </div>
+            <div id="workerProfileSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;font-size:14px;flex:1;min-width:260px;"></div>
+          </div>
           <div id="workerProfileEdit" style="display:none;margin-top:14px;">
             <div class="field"><label>Name</label><input id="editWorkerName" /></div>
             <div class="field"><label>Email</label><input id="editWorkerEmail" type="email" /></div>
@@ -823,7 +833,39 @@ function formatProfileDate(value) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function renderManagerWorkerPhoto(worker) {
+  const el = document.getElementById('workerProfilePhoto');
+  if (!el) return;
+  if (worker?.avatar_url) {
+    el.innerHTML = `<img src="${worker.avatar_url}" alt="${worker.name || 'Recruiter'}" />`;
+  } else {
+    const initials = (worker?.name || '?').trim().split(/\s+/).map((p) => p[0]).slice(0,2).join('').toUpperCase();
+    el.textContent = initials || '?';
+  }
+}
+
+function managerCompressPhoto(file, maxSize = 320, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.onload = () => { img.src = reader.result; };
+    img.onerror = () => reject(new Error('Could not read that image.'));
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxSize) { height = Math.round(height * (maxSize / width)); width = maxSize; }
+      else if (height > maxSize) { width = Math.round(width * (maxSize / height)); height = maxSize; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function renderWorkerProfile(worker) {
+  renderManagerWorkerPhoto(worker);
   const summary = document.getElementById('workerProfileSummary');
   summary.innerHTML = `
     <div><div class="section-label">Email</div><div>${worker.email || 'Not entered'}</div></div>
@@ -840,6 +882,32 @@ function renderWorkerProfile(worker) {
   document.getElementById('editWorkerStartDate').value = worker.start_date ? String(worker.start_date).slice(0,10) : '';
   document.getElementById('workerProfileEdit').style.display = 'none';
 }
+
+document.getElementById('managerWorkerPhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file || !currentWorkerDetail) return;
+  const err = document.getElementById('managerWorkerPhotoErr');
+  err.textContent = '';
+  try {
+    const dataUrl = await managerCompressPhoto(file);
+    const res = await fetch('/api/manager/workers/' + currentWorkerDetail.worker.id + '/avatar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      err.textContent = data.error || 'Could not upload photo.';
+      return;
+    }
+    currentWorkerDetail.worker.avatar_url = data.avatarUrl;
+    renderManagerWorkerPhoto(currentWorkerDetail.worker);
+    loadWorkers();
+  } catch (uploadErr) {
+    err.textContent = uploadErr.message || 'Could not upload photo.';
+  }
+  e.target.value = '';
+});
 
 document.getElementById('editWorkerProfileBtn').addEventListener('click', () => {
   document.getElementById('workerProfileEdit').style.display = 'block';
