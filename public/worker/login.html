@@ -31,17 +31,64 @@
       </div>
       <button class="btn btn-primary btn-block" type="submit">Sign in</button>
     </form>
+    <div style="margin-top:14px;text-align:center;">
+      <button type="button" class="btn btn-sm" id="forgotBtn">Forgot password?</button>
+    </div>
+    <div class="panel" id="forgotPanel" style="display:none;margin-top:14px;padding:16px;">
+      <p class="panel-title">Request access help</p>
+      <p class="sub" style="font-size:13px;">Enter your recruiter email. Your manager will see the request and can send you a secure reset link.</p>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="forgotEmail" autocomplete="username" />
+      </div>
+      <p class="error-msg" id="forgotErr"></p>
+      <p id="forgotSuccess" style="display:none;font-size:13px;"></p>
+      <button type="button" class="btn btn-primary btn-block" id="forgotSubmitBtn">Send access request</button>
+    </div>
     <div class="demo-hint">
-      Demo recruiter logins:<br />
-      sarah.chen@summitstaffing.demo / worker123<br />
-      david.kim@summitstaffing.demo / worker123<br />
-      maria.lopez@summitstaffing.demo / worker123<br /><br />
+      Recruiter accounts are created or invited by the staffing agency manager.<br /><br />
       Not a recruiter? Temp sign in is at <a href="/temp/login.html">/temp/login.html</a>.
       Lead sign in is at <a href="/manager/login.html">/manager/login.html</a>.
     </div>
   </div>
 </div>
 <script>
+document.getElementById('forgotBtn').addEventListener('click', () => {
+  const panel = document.getElementById('forgotPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if (panel.style.display === 'block') {
+    document.getElementById('forgotEmail').value = document.getElementById('email').value.trim();
+  }
+});
+
+document.getElementById('forgotSubmitBtn').addEventListener('click', async () => {
+  const email = document.getElementById('forgotEmail').value.trim();
+  const err = document.getElementById('forgotErr');
+  const success = document.getElementById('forgotSuccess');
+  err.textContent = '';
+  success.style.display = 'none';
+  if (!email) {
+    err.textContent = 'Enter your email.';
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/worker-forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      err.textContent = data.error || 'Could not submit request.';
+      return;
+    }
+    success.textContent = data.message;
+    success.style.display = 'block';
+  } catch (e) {
+    err.textContent = 'Could not reach the server.';
+  }
+});
+
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = document.getElementById('email').value.trim();
