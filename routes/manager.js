@@ -662,6 +662,23 @@ router.post('/workers/:id/offboard', async (req, res) => {
   }
 });
 
+router.post('/workers/:id/restore', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const workerId = Number(req.params.id);
+  const { rows } = await db.query(
+    `UPDATE users
+     SET active = TRUE, archived_at = NULL
+     WHERE id = $1 AND organization_id = $2 AND role = 'worker'
+       AND personal_data_deleted_at IS NULL
+     RETURNING id, name, email`,
+    [workerId, orgId]
+  );
+  if (!rows.length) {
+    return res.status(400).json({ error: 'This archived profile cannot be restored because its personal information was deleted.' });
+  }
+  res.json({ ok: true, worker: rows[0] });
+});
+
 // Remove a sales team member. Open to both the agency owner and a
 // branch Lead ("manager" role) — the router-level requireRole('manager',
 // 'owner') above already covers that, so no extra gate is needed here.
