@@ -123,6 +123,24 @@ async function cleanupDemoContent(orgId) {
   }
 }
 
+async function applyRequestedPasswordReset() {
+  const email = String(process.env.RESET_USER_EMAIL || '').trim().toLowerCase();
+  const password = String(process.env.RESET_USER_PASSWORD || '');
+  if (!email || !password) return;
+
+  const hash = await bcrypt.hash(password, 10);
+  const result = await db.query(
+    `UPDATE users SET password_hash = $1 WHERE lower(email) = lower($2)`,
+    [hash, email]
+  );
+
+  if (result.rowCount) {
+    console.log(`Password reset applied for ${email}.`);
+  } else {
+    console.log(`Password reset requested but no user found for ${email}.`);
+  }
+}
+
 async function run() {
   // Demo sales team members, report history, client company, assignment,
   // and manager task are only seeded against the in-memory pg-mem adapter
@@ -131,6 +149,8 @@ async function run() {
   // so the app is immediately usable, but leave the roster empty so the
   // real agency owner can add their own real sales team.
   const seedDemoContent = db.isUsingMemory() || process.env.SEED_DEMO_DATA === 'true';
+
+  await applyRequestedPasswordReset();
 
   const { rows: orgCheck } = await db.query(`SELECT id FROM organizations LIMIT 1`);
   if (orgCheck.length) {
