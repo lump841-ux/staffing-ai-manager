@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Manager-defined, fully customizable reporting categories.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS personal_data_deleted_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS activity_categories (
   id SERIAL PRIMARY KEY,
