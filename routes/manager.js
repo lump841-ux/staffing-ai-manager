@@ -545,6 +545,123 @@ router.get('/access-requests', async (req, res) => {
   res.json(rows);
 });
 
+// Archived recruiters are removed from the active roster but can be
+// retained with their historical work. If personal information was deleted,
+// only an anonymous label is returned.
+router.get('/workers-archived', async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT id, name, email, phone, start_date, avatar_url, archived_at,
+            personal_data_deleted_at, created_at
+     FROM users
+     WHERE organization_id = $1 AND role = 'worker' AND active = FALSE
+     ORDER BY archived_at DESC NULLS LAST, created_at DESC`,
+    [req.session.user.organizationId]
+  );
+  res.json(rows.map((r) => ({
+    ...r,
+    personalDataDeleted: !!r.personal_data_deleted_at,
+  })));
+});
+
+// Offboard a recruiter with explicit control over profile and work retention.
+// archive_keep_all: disable login, keep profile + historical work.
+// delete_profile_keep_work: remove PII but preserve work under an anonymous ID.
+// delete_profile_and_work: remove PII and recruiter work records.
+router.post('/workers/:id/offboard', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const workerId = Number(req.params.id);
+  const action = String(req.body?.action || '');
+  const valid = ['archive_keep_all', 'delete_profile_keep_work', 'delete_profile_and_work'];
+  if (!valid.includes(action)) {
+    return res.status(400).json({ error: 'Invalid offboarding action.' });
+  }
+
+  const { rows: workerRows } = await db.query(
+    `SELECT id, name, email FROM users
+     WHERE id = $1 AND organization_id = $2 AND role = 'worker'`,
+    [workerId, orgId]
+  );
+  if (!workerRows.length) return res.status(404).json({ error: 'Sales team member not found' });
+
+  await db.query('BEGIN');
+  try {
+    // Always remove active access/assignments when somebody leaves.
+    await db.query(`DELETE FROM category_assignments WHERE worker_id = $1`, [workerId]);
+    await db.query(`DELETE FROM agency_contact_rules WHERE contact_user_id = $1`, [workerId]);
+    await db.query(`UPDATE assignments SET agency_contact_user_id = NULL WHERE agency_contact_user_id = $1`, [workerId]);
+    await db.query(`UPDATE worker_access_tokens SET status = 'expired' WHERE worker_id = $1 AND status = 'pending'`, [workerId]);
+    await db.query(`UPDATE worker_access_requests SET status = 'resolved', resolved_at = NOW()
+                    WHERE worker_id = $1 AND status = 'pending'`, [workerId]);
+
+    if (action === 'delete_profile_and_work') {
+      // Remove recruiter-owned work/history. Order matters because some rows
+      // reference daily_reports and clock entries.
+      await db.query(`DELETE FROM discrepancies WHERE worker_id = $1`, [workerId]);
+      await db.query(
+        `DELETE FROM daily_report_values
+         WHERE daily_report_id IN (SELECT id FROM daily_reports WHERE worker_id = $1)`,
+        [workerId]
+      );
+      await db.query(`DELETE FROM daily_reports WHERE worker_id = $1`, [workerId]);
+      await db.query(`DELETE FROM worker_goals WHERE worker_id = $1`, [workerId]);
+      await db.query(`DELETE FROM worker_time_entries WHERE worker_id = $1`, [workerId]);
+      await db.query(`DELETE FROM activity_proofs WHERE worker_id = $1`, [workerId]);
+      await db.query(
+        `DELETE FROM worker_break_entries
+         WHERE worker_id = $1 OR clock_entry_id IN
+           (SELECT id FROM worker_clock_entries WHERE worker_id = $1)`,
+        [workerId]
+      );
+      await db.query(`DELETE FROM worker_clock_entries WHERE worker_id = $1`, [workerId]);
+      await db.query(`DELETE FROM manager_tasks WHERE related_worker_id = $1`, [workerId]);
+      await db.query(`DELETE FROM ai_conversations WHERE user_id = $1`, [workerId]);
+    }
+
+    if (action === 'archive_keep_all') {
+      await db.query(
+        `UPDATE users SET active = FALSE, archived_at = NOW()
+         WHERE id = $1 AND organization_id = $2`,
+        [workerId, orgId]
+      );
+    } else {
+      // Remove personal data while preserving the stable user ID needed by any
+      // retained historical records and audit references.
+      const anonymousEmail = `deleted-worker-${workerId}-${Date.now()}@twanova.invalid`;
+      const randomHash = await bcrypt.hash(crypto.randomBytes(48).toString('hex'), 10);
+      await db.query(
+        `UPDATE users
+         SET active = FALSE,
+             archived_at = NOW(),
+             personal_data_deleted_at = NOW(),
+             name = $1,
+             email = $2,
+             phone = NULL,
+             start_date = NULL,
+             avatar_url = NULL,
+             password_hash = $3
+         WHERE id = $4 AND organization_id = $5 AND role = 'worker'`,
+        [`Former Recruiter #${workerId}`, anonymousEmail, randomHash, workerId, orgId]
+      );
+      await db.query(`UPDATE audit_log SET user_id = NULL WHERE user_id = $1`, [workerId]);
+    }
+
+    await db.query('COMMIT');
+    res.json({
+      ok: true,
+      action,
+      message:
+        action === 'archive_keep_all'
+          ? 'Recruiter archived. Profile and work history were kept.'
+          : action === 'delete_profile_keep_work'
+            ? 'Personal profile deleted. Historical work was kept anonymously.'
+            : 'Personal profile and recruiter work history were deleted.',
+    });
+  } catch (e) {
+    await db.query('ROLLBACK');
+    throw e;
+  }
+});
+
 // Remove a sales team member. Open to both the agency owner and a
 // branch Lead ("manager" role) — the router-level requireRole('manager',
 // 'owner') above already covers that, so no extra gate is needed here.
