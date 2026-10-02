@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Manager-defined, fully customizable reporting categories.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS start_date DATE;
+
 CREATE TABLE IF NOT EXISTS activity_categories (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id),
