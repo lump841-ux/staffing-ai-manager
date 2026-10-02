@@ -78,7 +78,7 @@ router.get('/workers/:id', async (req, res) => {
   const orgId = req.session.user.organizationId;
   const workerId = Number(req.params.id);
   const { rows } = await db.query(
-    `SELECT id, name, email, avatar_url FROM users WHERE id = $1 AND organization_id = $2 AND role = 'worker'`,
+    `SELECT id, name, email, phone, start_date, active, created_at, avatar_url FROM users WHERE id = $1 AND organization_id = $2 AND role = 'worker'`,
     [workerId, orgId]
   );
   if (!rows.length) return res.status(404).json({ error: 'Worker not found' });
@@ -103,6 +103,27 @@ router.get('/workers/:id', async (req, res) => {
     history,
     goals: categories.map((c) => ({ categoryId: c.id, key: c.key, label: c.label, target: goalsByCat[c.id] || 0 })),
   });
+});
+
+router.put('/workers/:id/profile', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const workerId = Number(req.params.id);
+  const { name, email, phone, startDate } = req.body || {};
+  if (!name || !email) return res.status(400).json({ error: 'Name and email are required.' });
+
+  const { rows } = await db.query(
+    `UPDATE users
+     SET name = $1,
+         email = $2,
+         phone = $3,
+         start_date = $4
+     WHERE id = $5 AND organization_id = $6 AND role = 'worker'
+     RETURNING id, name, email, phone, start_date, active, created_at, avatar_url`,
+    [String(name).trim(), String(email).toLowerCase().trim(), phone ? String(phone).trim() : null,
+     startDate || null, workerId, orgId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Worker not found' });
+  res.json(rows[0]);
 });
 
 router.put('/workers/:id/goals', async (req, res) => {
