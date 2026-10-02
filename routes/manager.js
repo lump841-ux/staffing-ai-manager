@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const db = require('../services/db');
 const reporting = require('../services/reporting');
 const discrepancyEngine = require('../services/discrepancy');
@@ -9,6 +10,26 @@ const { requireRole } = require('../services/auth-middleware');
 const router = express.Router();
 
 router.use(requireRole('manager', 'owner'));
+
+function buildWorkerAccessUrl(req, token) {
+  return `${req.protocol}://${req.get('host')}/worker/set-password.html?token=${encodeURIComponent(token)}`;
+}
+
+async function createWorkerAccessToken(req, workerId, purpose = 'invite') {
+  const token = crypto.randomBytes(32).toString('hex');
+  await db.query(
+    `UPDATE worker_access_tokens SET status = 'expired'
+     WHERE worker_id = $1 AND purpose = $2 AND status = 'pending'`,
+    [workerId, purpose]
+  );
+  await db.query(
+    `INSERT INTO worker_access_tokens
+       (organization_id, worker_id, token, purpose, expires_at, created_by_user_id)
+     VALUES ($1,$2,$3,$4,NOW() + INTERVAL '48 hours',$5)`,
+    [req.session.user.organizationId, workerId, token, purpose, req.session.user.id]
+  );
+  return token;
+}
 
 // Temp/assignment/client-company data (the Assignment Communication
 // Network) is owner-only for now. Leads ("manager" role) and Recruiters
@@ -451,19 +472,55 @@ router.put('/settings', async (req, res) => {
 // ---- Manager: create a worker account ----
 
 router.post('/workers-new', async (req, res) => {
-  const { name, email, password } = req.body || {};
-  if (!name || !email || !password) return res.status(400).json({ error: 'name, email, and password are required' });
-  const hash = await bcrypt.hash(password, 10);
+  const { name, email } = req.body || {};
+  if (!name || !email) return res.status(400).json({ error: 'name and email are required' });
+  const normalizedEmail = String(email).toLowerCase().trim();
   try {
+    // Password is intentionally random until the recruiter opens their
+    // one-time setup link and chooses a private password.
+    const placeholderHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
     const { rows } = await db.query(
       `INSERT INTO users (organization_id, branch_id, role, name, email, password_hash)
-       VALUES ($1, $2, 'worker', $3, $4, $5) RETURNING id, name, email`,
-      [req.session.user.organizationId, req.session.user.branchId, name, email.toLowerCase().trim(), hash]
+       VALUES ($1, $2, 'worker', $3, $4, $5)
+       RETURNING id, name, email`,
+      [req.session.user.organizationId, req.session.user.branchId, name, normalizedEmail, placeholderHash]
     );
-    res.json(rows[0]);
+    const token = await createWorkerAccessToken(req, rows[0].id, 'invite');
+    res.json({ ...rows[0], setupUrl: buildWorkerAccessUrl(req, token), expiresInHours: 48 });
   } catch (e) {
     res.status(400).json({ error: 'A user with that email may already exist' });
   }
+});
+
+router.post('/workers/:id/access-link', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const workerId = Number(req.params.id);
+  const { rows } = await db.query(
+    `SELECT id, name, email FROM users
+     WHERE id = $1 AND organization_id = $2 AND role = 'worker'`,
+    [workerId, orgId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Sales team member not found' });
+  await db.query(`UPDATE users SET active = TRUE WHERE id = $1`, [workerId]);
+  const token = await createWorkerAccessToken(req, workerId, 'password_reset');
+  await db.query(
+    `UPDATE worker_access_requests SET status='resolved', resolved_at=NOW()
+     WHERE worker_id=$1 AND status='pending'`,
+    [workerId]
+  );
+  res.json({ ok: true, worker: rows[0], setupUrl: buildWorkerAccessUrl(req, token), expiresInHours: 48 });
+});
+
+router.get('/access-requests', async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT ar.id, ar.worker_id, ar.created_at, u.name, u.email
+     FROM worker_access_requests ar
+     JOIN users u ON u.id = ar.worker_id
+     WHERE ar.organization_id = $1 AND ar.status = 'pending'
+     ORDER BY ar.created_at DESC`,
+    [req.session.user.organizationId]
+  );
+  res.json(rows);
 });
 
 // Remove a sales team member. Open to both the agency owner and a
