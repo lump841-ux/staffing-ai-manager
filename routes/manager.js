@@ -493,7 +493,7 @@ router.put('/settings', async (req, res) => {
 // ---- Manager: create a worker account ----
 
 router.post('/workers-new', async (req, res) => {
-  const { name, email } = req.body || {};
+  const { name, email, phone, startDate } = req.body || {};
   if (!name || !email) return res.status(400).json({ error: 'name and email are required' });
   const normalizedEmail = String(email).toLowerCase().trim();
   try {
@@ -501,10 +501,11 @@ router.post('/workers-new', async (req, res) => {
     // one-time setup link and chooses a private password.
     const placeholderHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
     const { rows } = await db.query(
-      `INSERT INTO users (organization_id, branch_id, role, name, email, password_hash)
-       VALUES ($1, $2, 'worker', $3, $4, $5)
-       RETURNING id, name, email`,
-      [req.session.user.organizationId, req.session.user.branchId, name, normalizedEmail, placeholderHash]
+      `INSERT INTO users (organization_id, branch_id, role, name, email, phone, start_date, password_hash)
+       VALUES ($1, $2, 'worker', $3, $4, $5, $6, $7)
+       RETURNING id, name, email, phone, start_date`,
+      [req.session.user.organizationId, req.session.user.branchId, name, normalizedEmail,
+       phone ? String(phone).trim() : null, startDate || null, placeholderHash]
     );
     const token = await createWorkerAccessToken(req, rows[0].id, 'invite');
     res.json({ ...rows[0], setupUrl: buildWorkerAccessUrl(req, token), expiresInHours: 48 });
