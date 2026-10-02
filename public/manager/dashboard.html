@@ -230,6 +230,16 @@
           <tbody></tbody>
         </table>
       </div>
+      <div class="panel" id="archivedWorkersPanel" style="margin-top:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+          <div>
+            <p class="panel-title" style="margin-bottom:4px;">Archived Staff</p>
+            <p class="sub" style="font-size:13px;margin:0;">Former recruiters kept for historical records and reporting.</p>
+          </div>
+          <button class="btn btn-sm" id="refreshArchivedWorkersBtn">Refresh</button>
+        </div>
+        <div id="archivedWorkersList" style="margin-top:12px;"></div>
+      </div>
       <div class="panel" id="workerDetailPanel" style="display:none;">
         <p class="panel-title" id="workerDetailTitle"></p>
         <div id="workerProfileCard" style="margin:12px 0 18px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#f8fafc;">
@@ -560,6 +570,7 @@ async function loadWorkers() {
       </td>
     </tr>`).join('');
   document.getElementById('workerDetailPanel').style.display = 'none';
+  loadArchivedWorkers();
   loadAccessRequests();
 }
 
@@ -652,12 +663,93 @@ async function loadAccessRequests() {
 }
 
 async function removeWorker(id, name) {
-  if (!confirm(`Remove ${name || 'this sales team member'}? They'll no longer be able to log in, but their past daily reports stay on record.`)) return;
-  const res = await fetch('/api/manager/workers/' + id, { method: 'DELETE' });
+  const who = name || 'this sales team member';
+  const choice = prompt(
+`Remove ${who}. Choose what to do:
+
+1 = Archive person and KEEP profile + work
+2 = DELETE personal profile, KEEP work history anonymously
+3 = DELETE personal profile AND work history
+Cancel = make no changes
+
+Enter 1, 2, or 3:`
+  );
+  if (!choice) return;
+
+  const actions = {
+    '1': 'archive_keep_all',
+    '2': 'delete_profile_keep_work',
+    '3': 'delete_profile_and_work',
+  };
+  const action = actions[String(choice).trim()];
+  if (!action) {
+    alert('Nothing changed. Enter 1, 2, or 3 next time.');
+    return;
+  }
+
+  if (action === 'delete_profile_and_work') {
+    const confirmText = prompt(
+      `This permanently removes ${who}'s recruiter work history from Twanova. Type DELETE to confirm.`
+    );
+    if (confirmText !== 'DELETE') {
+      alert('Full deletion canceled.');
+      return;
+    }
+  }
+
+  const res = await fetch('/api/manager/workers/' + id + '/offboard', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) { alert(data.error || 'Could not remove sales team member.'); return; }
+  if (!res.ok) {
+    alert(data.error || 'Could not complete offboarding.');
+    return;
+  }
+  alert(data.message || 'Offboarding completed.');
   loadWorkers();
+  loadArchivedWorkers();
 }
+
+async function loadArchivedWorkers() {
+  const res = await fetch('/api/manager/workers-archived');
+  if (!res.ok) return;
+  const rows = await res.json();
+  const el = document.getElementById('archivedWorkersList');
+  if (!rows.length) {
+    el.innerHTML = '<p class="empty">No archived staff yet.</p>';
+    return;
+  }
+  el.innerHTML = rows.map((w) => `
+    <div class="discrepancy-row">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="avatar-sm">${w.avatar_url ? `<img src="${w.avatar_url}" alt="${w.name}" />` : (w.name || '?').trim().split(/\s+/).map((p) => p[0]).slice(0,2).join('').toUpperCase()}</div>
+        <div>
+          <div class="who">${w.name}</div>
+          <div class="why">${w.personalDataDeleted ? 'Personal information deleted' : (w.email || 'No email')} · Archived ${w.archived_at ? new Date(w.archived_at).toLocaleDateString() : ''}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        ${w.personalDataDeleted ? '<span class="pill gray">Anonymous history</span>' :
+          `<button class="btn btn-sm" onclick="restoreArchivedWorker(${w.id}, '${(w.name || '').replace(/'/g, "\\'")}')">Restore</button>`}
+      </div>
+    </div>`).join('');
+}
+
+async function restoreArchivedWorker(id, name) {
+  if (!confirm(`Restore ${name || 'this recruiter'} to the active Sales Team?`)) return;
+  const res = await fetch('/api/manager/workers/' + id + '/restore', { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(data.error || 'Could not restore recruiter.');
+    return;
+  }
+  loadWorkers();
+  loadArchivedWorkers();
+}
+
+document.getElementById('refreshArchivedWorkersBtn').addEventListener('click', loadArchivedWorkers);
 
 // ---- Temps ----
 // Internally still the "temp" account type (kept as-is under the
