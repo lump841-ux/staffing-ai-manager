@@ -206,6 +206,8 @@
         <p class="sub" style="font-size:13px;">Enter their name and email. Twanova will create a secure one-time setup link so they can choose their own password.</p>
         <div class="field"><label>Name</label><input id="newWorkerName" placeholder="e.g. Jordan Diaz" /></div>
         <div class="field"><label>Email</label><input id="newWorkerEmail" type="email" placeholder="jordan@example.com" /></div>
+        <div class="field"><label>Phone</label><input id="newWorkerPhone" type="tel" placeholder="(555) 555-0123" /></div>
+        <div class="field"><label>Start date</label><input id="newWorkerStartDate" type="date" /></div>
         <p id="addWorkerError" style="color:var(--red,#d92d20);font-size:13px;display:none;"></p>
         <button class="btn btn-primary btn-sm" id="saveNewWorkerBtn">Create invite</button>
         <button class="btn btn-sm" id="closeAddWorkerBtn">Cancel</button>
@@ -230,6 +232,22 @@
       </div>
       <div class="panel" id="workerDetailPanel" style="display:none;">
         <p class="panel-title" id="workerDetailTitle"></p>
+        <div id="workerProfileCard" style="margin:12px 0 18px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#f8fafc;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;">
+            <strong style="color:var(--navy);">Profile information</strong>
+            <button class="btn btn-sm" id="editWorkerProfileBtn">Edit profile</button>
+          </div>
+          <div id="workerProfileSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;font-size:14px;"></div>
+          <div id="workerProfileEdit" style="display:none;margin-top:14px;">
+            <div class="field"><label>Name</label><input id="editWorkerName" /></div>
+            <div class="field"><label>Email</label><input id="editWorkerEmail" type="email" /></div>
+            <div class="field"><label>Phone</label><input id="editWorkerPhone" type="tel" /></div>
+            <div class="field"><label>Start date</label><input id="editWorkerStartDate" type="date" /></div>
+            <p class="error-msg" id="workerProfileErr"></p>
+            <button class="btn btn-primary btn-sm" id="saveWorkerProfileBtn">Save profile</button>
+            <button class="btn btn-sm" id="cancelWorkerProfileBtn">Cancel</button>
+          </div>
+        </div>
         <div style="position:relative;height:200px;margin-bottom:16px;"><canvas id="workerHistoryChart"></canvas></div>
         <p class="section-label">Daily goals</p>
         <div id="workerGoalsForm"></div>
@@ -562,6 +580,8 @@ document.getElementById('closeAddWorkerBtn').addEventListener('click', () => {
 document.getElementById('saveNewWorkerBtn').addEventListener('click', async () => {
   const name = document.getElementById('newWorkerName').value.trim();
   const email = document.getElementById('newWorkerEmail').value.trim();
+  const phone = document.getElementById('newWorkerPhone') ? document.getElementById('newWorkerPhone').value.trim() : '';
+  const startDate = document.getElementById('newWorkerStartDate') ? document.getElementById('newWorkerStartDate').value : '';
   const errEl = document.getElementById('addWorkerError');
   errEl.style.display = 'none';
   if (!name || !email) {
@@ -571,7 +591,7 @@ document.getElementById('saveNewWorkerBtn').addEventListener('click', async () =
   }
   const res = await fetch('/api/manager/workers-new', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email }),
+    body: JSON.stringify({ name, email, phone, startDate }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -684,6 +704,7 @@ async function openWorkerDetail(id) {
   currentWorkerDetail = data;
   document.getElementById('workerDetailPanel').style.display = 'block';
   document.getElementById('workerDetailTitle').textContent = data.worker.name + ' — last 14 days';
+  renderWorkerProfile(data.worker);
 
   const ctx = document.getElementById('workerHistoryChart');
   if (window._historyChart) window._historyChart.destroy();
@@ -703,6 +724,63 @@ async function openWorkerDetail(id) {
       <input type="number" min="0" style="width:90px;" data-cat="${g.categoryId}" value="${g.target}" />
     </div>`).join('');
 }
+
+function formatProfileDate(value) {
+  if (!value) return 'Not entered';
+  const d = new Date(String(value).includes('T') ? value : value + 'T00:00:00');
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function renderWorkerProfile(worker) {
+  const summary = document.getElementById('workerProfileSummary');
+  summary.innerHTML = `
+    <div><div class="section-label">Email</div><div>${worker.email || 'Not entered'}</div></div>
+    <div><div class="section-label">Phone</div><div>${worker.phone || 'Not entered'}</div></div>
+    <div><div class="section-label">Start date</div><div>${formatProfileDate(worker.start_date)}</div></div>
+    <div><div class="section-label">Account created</div><div>${formatProfileDate(worker.created_at)}</div></div>
+    <div><div class="section-label">Status</div><div>${worker.active === false ? '<span class="pill red">Inactive</span>' : '<span class="pill green">Active</span>'}</div></div>
+    <div><div class="section-label">Role</div><div>Recruiter / Sales Team</div></div>
+  `;
+
+  document.getElementById('editWorkerName').value = worker.name || '';
+  document.getElementById('editWorkerEmail').value = worker.email || '';
+  document.getElementById('editWorkerPhone').value = worker.phone || '';
+  document.getElementById('editWorkerStartDate').value = worker.start_date ? String(worker.start_date).slice(0,10) : '';
+  document.getElementById('workerProfileEdit').style.display = 'none';
+}
+
+document.getElementById('editWorkerProfileBtn').addEventListener('click', () => {
+  document.getElementById('workerProfileEdit').style.display = 'block';
+});
+document.getElementById('cancelWorkerProfileBtn').addEventListener('click', () => {
+  document.getElementById('workerProfileEdit').style.display = 'none';
+  if (currentWorkerDetail) renderWorkerProfile(currentWorkerDetail.worker);
+});
+document.getElementById('saveWorkerProfileBtn').addEventListener('click', async () => {
+  if (!currentWorkerDetail) return;
+  const err = document.getElementById('workerProfileErr');
+  err.textContent = '';
+  const payload = {
+    name: document.getElementById('editWorkerName').value.trim(),
+    email: document.getElementById('editWorkerEmail').value.trim(),
+    phone: document.getElementById('editWorkerPhone').value.trim(),
+    startDate: document.getElementById('editWorkerStartDate').value,
+  };
+  const res = await fetch('/api/manager/workers/' + currentWorkerDetail.worker.id + '/profile', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    err.textContent = data.error || 'Could not save profile.';
+    return;
+  }
+  currentWorkerDetail.worker = data;
+  document.getElementById('workerDetailTitle').textContent = data.name + ' — last 14 days';
+  renderWorkerProfile(data);
+  loadWorkers();
+});
 
 document.getElementById('saveGoalsBtn').addEventListener('click', async () => {
   if (!currentWorkerDetail) return;
