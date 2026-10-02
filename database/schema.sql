@@ -545,3 +545,30 @@ CREATE TABLE IF NOT EXISTS notifications (
   read BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+
+-- Recruiter account invitations and password-reset access.
+-- Tokens are single-use, expire automatically, and are separate from
+-- credentials/history so resetting access never replaces the worker record.
+CREATE TABLE IF NOT EXISTS worker_access_tokens (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  worker_id INTEGER NOT NULL REFERENCES users(id),
+  token TEXT NOT NULL UNIQUE,
+  purpose TEXT NOT NULL CHECK (purpose IN ('invite','password_reset')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','used','expired')),
+  expires_at TIMESTAMP NOT NULL,
+  created_by_user_id INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  used_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS worker_access_requests (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  worker_id INTEGER NOT NULL REFERENCES users(id),
+  request_type TEXT NOT NULL DEFAULT 'password_reset' CHECK (request_type IN ('password_reset')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','resolved')),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMP
+);
