@@ -452,3 +452,50 @@ table.data-table td{padding:13px 10px}
   object-fit:cover;
   display:block;
 }
+
+
+/* Enhanced Twanova sidebar identity */
+.brand-lockup-enhanced{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  padding:8px 2px 18px!important;
+}
+.brand-mark-wrap{
+  width:48px;
+  height:48px;
+  flex:0 0 48px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:14px;
+  background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.16),rgba(255,255,255,.02) 62%);
+  box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(243,107,22,.18),0 0 18px rgba(66,133,244,.14);
+}
+.brand-mark-img{
+  width:38px!important;
+  height:38px!important;
+  object-fit:contain;
+  filter:brightness(1.18) contrast(1.08) drop-shadow(0 2px 8px rgba(0,0,0,.22));
+}
+.brand-copy{min-width:0}
+.brand-name{
+  font-weight:900;
+  letter-spacing:.10em;
+  line-height:1;
+  font-size:18px;
+  white-space:nowrap;
+}
+.brand-name span:first-child{color:#ffffff}
+.brand-name span:last-child{color:var(--orange)}
+.brand-subtitle{
+  margin-top:5px;
+  font-size:8px;
+  letter-spacing:.22em;
+  font-weight:700;
+  color:#c7d5e8;
+  white-space:nowrap;
+}
+@media (max-width:860px){
+  .brand-lockup-enhanced{display:none!important}
+}
