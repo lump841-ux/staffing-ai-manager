@@ -202,13 +202,25 @@
         <button class="btn btn-sm" id="addWorkerBtn">Add sales team member</button>
       </div>
       <div class="panel" id="addWorkerPanel" style="display:none;">
-        <p class="panel-title">Add sales team member</p>
+        <p class="panel-title">Invite sales team member</p>
+        <p class="sub" style="font-size:13px;">Enter their name and email. Twanova will create a secure one-time setup link so they can choose their own password.</p>
         <div class="field"><label>Name</label><input id="newWorkerName" placeholder="e.g. Jordan Diaz" /></div>
         <div class="field"><label>Email</label><input id="newWorkerEmail" type="email" placeholder="jordan@example.com" /></div>
-        <div class="field"><label>Temporary password</label><input id="newWorkerPassword" type="text" placeholder="Temp1234" /></div>
         <p id="addWorkerError" style="color:var(--red,#d92d20);font-size:13px;display:none;"></p>
-        <button class="btn btn-primary btn-sm" id="saveNewWorkerBtn">Save</button>
+        <button class="btn btn-primary btn-sm" id="saveNewWorkerBtn">Create invite</button>
         <button class="btn btn-sm" id="closeAddWorkerBtn">Cancel</button>
+      </div>
+      <div class="panel" id="accessLinkPanel" style="display:none;">
+        <p class="panel-title" id="accessLinkTitle">Secure recruiter access link</p>
+        <p class="sub" style="font-size:13px;">Copy this link and send it to the recruiter. It expires in 48 hours and can only be used once.</p>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="accessLinkInput" readonly style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-md);" />
+          <button class="btn btn-primary btn-sm" id="copyAccessLinkBtn">Copy link</button>
+        </div>
+      </div>
+      <div class="panel" id="accessRequestsPanel" style="display:none;">
+        <p class="panel-title">Password help requests</p>
+        <div id="accessRequestsList"></div>
       </div>
       <div class="panel" id="rosterPanel">
         <table class="data-table" id="rosterTable">
@@ -525,10 +537,12 @@ async function loadWorkers() {
       <td>${w.submittedToday ? w.todayTotal : '<span class="pill red">Missing</span>'}</td>
       <td>
         <button class="btn btn-sm" onclick="openWorkerDetail(${w.id})">View</button>
+        <button class="btn btn-sm" onclick="generateWorkerAccessLink(${w.id}, '${(w.name || '').replace(/'/g, "\\'")}')">Reset access</button>
         <button class="btn btn-sm" style="color:var(--red,#d92d20);" onclick="removeWorker(${w.id}, '${(w.name || '').replace(/'/g, "\\'")}')">Remove</button>
       </td>
     </tr>`).join('');
   document.getElementById('workerDetailPanel').style.display = 'none';
+  loadAccessRequests();
 }
 
 // Add sales team member — an inline form panel rather than a chain of
@@ -538,7 +552,6 @@ async function loadWorkers() {
 document.getElementById('addWorkerBtn').addEventListener('click', () => {
   document.getElementById('newWorkerName').value = '';
   document.getElementById('newWorkerEmail').value = '';
-  document.getElementById('newWorkerPassword').value = '';
   document.getElementById('addWorkerError').style.display = 'none';
   document.getElementById('addWorkerPanel').style.display = 'block';
   document.getElementById('addWorkerPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -549,27 +562,74 @@ document.getElementById('closeAddWorkerBtn').addEventListener('click', () => {
 document.getElementById('saveNewWorkerBtn').addEventListener('click', async () => {
   const name = document.getElementById('newWorkerName').value.trim();
   const email = document.getElementById('newWorkerEmail').value.trim();
-  const password = document.getElementById('newWorkerPassword').value;
   const errEl = document.getElementById('addWorkerError');
   errEl.style.display = 'none';
-  if (!name || !email || !password) {
-    errEl.textContent = 'Name, email, and a temporary password are all required.';
+  if (!name || !email) {
+    errEl.textContent = 'Name and email are required.';
     errEl.style.display = 'block';
     return;
   }
   const res = await fetch('/api/manager/workers-new', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email }),
   });
   const data = await res.json();
   if (!res.ok) {
-    errEl.textContent = data.error || 'Could not add sales team member.';
+    errEl.textContent = data.error || 'Could not invite sales team member.';
     errEl.style.display = 'block';
     return;
   }
   document.getElementById('addWorkerPanel').style.display = 'none';
+  showAccessLink(name, data.setupUrl);
   loadWorkers();
 });
+
+function showAccessLink(name, url) {
+  document.getElementById('accessLinkTitle').textContent = 'Secure access link for ' + (name || 'recruiter');
+  document.getElementById('accessLinkInput').value = url || '';
+  document.getElementById('accessLinkPanel').style.display = 'block';
+  document.getElementById('accessLinkPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+document.getElementById('copyAccessLinkBtn').addEventListener('click', async () => {
+  const input = document.getElementById('accessLinkInput');
+  try {
+    await navigator.clipboard.writeText(input.value);
+    document.getElementById('copyAccessLinkBtn').textContent = 'Copied';
+    setTimeout(() => { document.getElementById('copyAccessLinkBtn').textContent = 'Copy link'; }, 1600);
+  } catch (e) {
+    input.select();
+    document.execCommand('copy');
+  }
+});
+
+async function generateWorkerAccessLink(id, name) {
+  const res = await fetch('/api/manager/workers/' + id + '/access-link', { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(data.error || 'Could not create an access link.');
+    return;
+  }
+  showAccessLink(name, data.setupUrl);
+  loadAccessRequests();
+}
+
+async function loadAccessRequests() {
+  const res = await fetch('/api/manager/access-requests');
+  if (!res.ok) return;
+  const rows = await res.json();
+  const panel = document.getElementById('accessRequestsPanel');
+  const list = document.getElementById('accessRequestsList');
+  panel.style.display = rows.length ? 'block' : 'none';
+  list.innerHTML = rows.map((r) => `
+    <div class="discrepancy-row">
+      <div>
+        <div class="who">${r.name}</div>
+        <div class="why">${r.email} requested password help</div>
+      </div>
+      <button class="btn btn-sm" onclick="generateWorkerAccessLink(${r.worker_id}, '${(r.name || '').replace(/'/g, "\\'")}')">Create reset link</button>
+    </div>`).join('');
+}
 
 async function removeWorker(id, name) {
   if (!confirm(`Remove ${name || 'this sales team member'}? They'll no longer be able to log in, but their past daily reports stay on record.`)) return;
