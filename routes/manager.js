@@ -105,6 +105,26 @@ router.get('/workers/:id', async (req, res) => {
   });
 });
 
+router.post('/workers/:id/avatar', async (req, res) => {
+  const orgId = req.session.user.organizationId;
+  const workerId = Number(req.params.id);
+  const { dataUrl } = req.body || {};
+  if (typeof dataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp);base64,/.test(dataUrl)) {
+    return res.status(400).json({ error: 'Please upload a PNG, JPEG, or WebP image.' });
+  }
+  if (dataUrl.length > 900 * 1024) {
+    return res.status(400).json({ error: 'That image is too large. Try a smaller photo.' });
+  }
+  const { rows } = await db.query(
+    `UPDATE users SET avatar_url = $1
+     WHERE id = $2 AND organization_id = $3 AND role = 'worker'
+     RETURNING id, name, email, avatar_url`,
+    [dataUrl, workerId, orgId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Sales team member not found' });
+  res.json({ ok: true, worker: rows[0], avatarUrl: rows[0].avatar_url });
+});
+
 router.put('/workers/:id/profile', async (req, res) => {
   const orgId = req.session.user.organizationId;
   const workerId = Number(req.params.id);
