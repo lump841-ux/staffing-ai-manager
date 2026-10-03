@@ -19,7 +19,7 @@
 .section{padding:54px 5vw}.section h2{font-size:34px;color:var(--navy);margin:0 0 10px}.lead{max-width:800px;color:var(--muted)}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:24px}.card,.panel{background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 10px 26px rgba(10,47,97,.05)}
 .login-wrap{min-height:calc(100vh - 84px);display:grid;place-items:center;padding:36px;background:linear-gradient(180deg,var(--cream2),var(--cream))}.login-card{width:min(520px,92vw);background:#fff;border:1px solid var(--line);border-radius:24px;padding:32px;box-shadow:0 16px 40px rgba(10,47,97,.10)}.login-card img{width:250px;display:block;margin:0 auto 12px}
 label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}input,select,textarea{width:100%;padding:12px;border:1px solid #cfd9e7;border-radius:10px;font:inherit}.demo-note{background:#faf8f4;border:1px dashed #d6cec1;border-radius:12px;padding:14px;font-size:12px;color:#526986;margin-top:16px}
-.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.sidebar{background:linear-gradient(180deg,#08264f,#0a2f61);color:#fff;padding:20px 16px;position:sticky;top:0;height:100vh}.sidebar img{width:195px;display:block;margin:0 auto 18px;background:var(--cream);border-radius:12px;padding:7px}
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.sidebar{background:linear-gradient(180deg,#08264f,#0a2f61);color:#fff;padding:0 16px 20px;position:sticky;top:0;height:100vh}.sidebar-brand{background:#fff;margin:0 -16px 18px;padding:12px 16px;border-bottom:1px solid #e5e9ef}.sidebar-brand img{width:205px;height:58px;object-fit:contain;display:block;margin:0 auto;background:transparent;border-radius:0;padding:0}
 .sidebtn{display:block;width:100%;text-align:left;background:transparent;color:#e8f0fa;border:0;padding:12px 14px;border-radius:10px;margin-top:7px;font-weight:600}.sidebtn:hover,.sidebtn.active{background:#12437f}.main{padding:24px}.appbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.page-title{margin:0;color:var(--navy);font-size:30px}.sub{font-size:13px;color:var(--muted)}.pill{background:#e9f1ff;color:#18457a;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}.kpi b{display:block;font-size:30px;color:var(--navy);margin-top:6px}.grid2{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;margin-top:18px}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px;border-bottom:1px solid #edf1f6;text-align:left}th{color:#546a88}.tag{display:inline-block;padding:5px 9px;border-radius:999px;background:#eef4fb;color:#18457a;font-size:11px;font-weight:700}.actionrow{display:flex;gap:8px;flex-wrap:wrap}.smallbtn{border:1px solid var(--line);background:#fff;padding:8px 10px;border-radius:10px;font-size:12px;font-weight:700;color:var(--navy)}.smallbtn.orange{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#fff;border:0}
@@ -59,7 +59,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px;bord
 
 <div id="dashboard" class="hidden">
   <div class="app">
-    <aside class="sidebar"><img src="/brand-logo-full.png" alt="Twanova"><button class="sidebtn active" onclick="openPage('overview',this)">Dashboard</button><button class="sidebtn" onclick="openPage('team',this)">Team Members</button><button class="sidebtn" onclick="openPage('tasks',this)">Tasks & Activity</button><button class="sidebtn" onclick="openPage('time',this)">Time & Breaks</button><button class="sidebtn" onclick="openPage('reports',this)">Friday Final Reports</button><button class="sidebtn" onclick="openPage('ai',this)">AI Assistant</button><button class="sidebtn" onclick="openPage('myprofile',this)">My Profile</button><button class="sidebtn" onclick="openPage('settings',this)">Settings</button><button class="sidebtn" style="margin-top:24px;color:#ffc59e" onclick="showMarketing()">Log Out</button></aside>
+    <aside class="sidebar"><div class="sidebar-brand"><img src="/brand-logo-full.png" alt="Twanova"></div><button class="sidebtn active" onclick="openPage('overview',this)">Dashboard</button><button class="sidebtn" onclick="openPage('team',this)">Team Members</button><button class="sidebtn" onclick="openPage('tasks',this)">Tasks & Activity</button><button class="sidebtn" onclick="openPage('time',this)">Time & Breaks</button><button class="sidebtn" onclick="openPage('reports',this)">Friday Final Reports</button><button class="sidebtn" onclick="openPage('ai',this)">AI Assistant</button><button class="sidebtn" onclick="openPage('myprofile',this)">My Profile</button><button class="sidebtn" onclick="openPage('settings',this)">Settings</button><button class="sidebtn" style="margin-top:24px;color:#ffc59e" onclick="showMarketing()">Log Out</button></aside>
     <main class="main">
       <div class="appbar"><div><h2 class="page-title" id="title">Agency Command Center</h2><div class="sub">Twanova Staffing Solutions • Demo Agency</div></div><span class="pill">Manager Demo</span></div>
       <section id="overview" class="page"><div class="kpis"><div class="kpi">Team Members<b id="teamCount">12</b><small class="sub">Active office team</small></div><div class="kpi">Open Tasks<b>28</b><small class="sub">6 due today</small></div><div class="kpi">Needs Review<b>4</b><small class="sub">Discrepancies flagged</small></div><div class="kpi">Weekly Activity<b>184</b><small class="sub">+12% vs last week</small></div></div><div class="grid2"><div class="panel"><h3>Recent Agency Activity</h3><table><tr><th>Team Member</th><th>Activity</th><th>Status</th></tr><tr><td>Sarah Chen</td><td>Client follow-up completed</td><td><span class="tag">Done</span></td></tr><tr><td>Mike Rivera</td><td>New contract outreach</td><td><span class="tag">In Progress</span></td></tr><tr><td>Janet Cole</td><td>Weekly account review</td><td><span class="tag">Done</span></td></tr></table></div><div class="panel"><h3>Attention Required</h3><p>2 time entries need manager review. 1 client callback is overdue. 1 team profile is incomplete.</p><button class="btn btn-light" onclick="openPage('team')">Open Team Members</button></div></div></section>
@@ -68,7 +68,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px;bord
         <div class="panel">
           <div class="taskbar">
             <div><h3 style="margin:0">Tasks & Activity</h3><div class="sub">Managers can add, edit, reassign, complete, or remove tasks.</div></div>
-            <button class="btn btn-orange" onclick="openAddTask()">+ Add Task</button>
+            <div class="actionrow"><button class="btn btn-light" onclick="resetDemoTasks()">Restore Sample Tasks</button><button class="btn btn-orange" onclick="openAddTask()">+ Add Task</button></div>
           </div>
           <div id="taskTableWrap"></div>
         </div>
@@ -106,12 +106,24 @@ let members=JSON.parse(localStorage.getItem('twanovaMembers')||'null')||[
 {name:'Janet Cole',role:'Recruiter',email:'janet.cole@twanova.demo',phone:'570-555-0143',status:'Active',tasks:21,bio:'Owns candidate screening and weekly account recaps.',photo:''}
 ];
 let tasks=JSON.parse(localStorage.getItem('twanovaTasks')||'null')||[
-{id:1,title:'Client renewal call',assignee:'Sarah Chen',due:'Today',status:'Open'},
-{id:2,title:'Prospect follow-up',assignee:'Mike Rivera',due:'Today',status:'In Progress'},
-{id:3,title:'Weekly account recap',assignee:'Janet Cole',due:'Friday',status:'Open'}
+{id:1,title:'Client Follow-Up',assignee:'Sarah Chen',due:'Today',status:'Open'},
+{id:2,title:'Contracts Review',assignee:'Mike Rivera',due:'Today',status:'In Progress'},
+{id:3,title:'Candidate Screening',assignee:'Janet Cole',due:'Thursday',status:'Open'},
+{id:4,title:'Client Meeting Prep',assignee:'Sarah Chen',due:'Friday',status:'Open'},
+{id:5,title:'Weekly Account Recap',assignee:'Janet Cole',due:'Friday',status:'Open'}
 ];
 function saveMembers(){localStorage.setItem('twanovaMembers',JSON.stringify(members))}
 function saveTasks(){localStorage.setItem('twanovaTasks',JSON.stringify(tasks))}
+function resetDemoTasks(){
+  tasks=[
+    {id:1,title:'Client Follow-Up',assignee:'Sarah Chen',due:'Today',status:'Open'},
+    {id:2,title:'Contracts Review',assignee:'Mike Rivera',due:'Today',status:'In Progress'},
+    {id:3,title:'Candidate Screening',assignee:'Janet Cole',due:'Thursday',status:'Open'},
+    {id:4,title:'Client Meeting Prep',assignee:'Sarah Chen',due:'Friday',status:'Open'},
+    {id:5,title:'Weekly Account Recap',assignee:'Janet Cole',due:'Friday',status:'Open'}
+  ];
+  saveTasks();renderTaskTable();
+}
 function showLogin(){marketing.classList.add('hidden');dashboard.classList.add('hidden');login.classList.remove('hidden')}
 function showMarketing(){login.classList.add('hidden');dashboard.classList.add('hidden');marketing.classList.remove('hidden')}
 function doLogin(){if(email.value==='manager@twanova.demo'&&pass.value==='Twanova2026!'){login.classList.add('hidden');marketing.classList.add('hidden');dashboard.classList.remove('hidden');renderTeamTable();renderTaskTable();renderMyPhoto()}else alert('Use the demo credentials shown on the page.')}
