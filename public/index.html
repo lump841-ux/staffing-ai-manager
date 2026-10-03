@@ -23,7 +23,7 @@ label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}input,selec
 .sidebtn{display:block;width:100%;text-align:left;background:transparent;color:#e8f0fa;border:0;padding:12px 14px;border-radius:10px;margin-top:7px;font-weight:600}.sidebtn:hover,.sidebtn.active{background:#12437f}.main{padding:24px}.appbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.page-title{margin:0;color:var(--navy);font-size:30px}.sub{font-size:13px;color:var(--muted)}.pill{background:#e9f1ff;color:#18457a;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}.kpi b{display:block;font-size:30px;color:var(--navy);margin-top:6px}.grid2{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;margin-top:18px}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px;border-bottom:1px solid #edf1f6;text-align:left}th{color:#546a88}.tag{display:inline-block;padding:5px 9px;border-radius:999px;background:#eef4fb;color:#18457a;font-size:11px;font-weight:700}.actionrow{display:flex;gap:8px;flex-wrap:wrap}.smallbtn{border:1px solid var(--line);background:#fff;padding:8px 10px;border-radius:10px;font-size:12px;font-weight:700;color:var(--navy)}.smallbtn.orange{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#fff;border:0}
-.ai-box{background:linear-gradient(135deg,#0f376d,#154c8d);color:#fff;border-radius:20px;padding:22px}.modal-backdrop{position:fixed;inset:0;background:rgba(8,24,48,.45);display:none;align-items:center;justify-content:center;z-index:50}.modal{background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.18);padding:24px;width:min(520px,92vw);max-height:90vh;overflow:auto}.closex{float:right;background:none;border:0;font-size:22px}.profile-grid{display:grid;grid-template-columns:100px 1fr;gap:18px}.avatar{width:96px;height:96px;border-radius:18px;background:linear-gradient(135deg,#dbe7f7,#eef4fb);display:grid;place-items:center;color:var(--navy);font-size:32px;font-weight:800}.tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.ai-box{background:linear-gradient(135deg,#0f376d,#154c8d);color:#fff;border-radius:20px;padding:22px}.modal-backdrop{position:fixed;inset:0;background:rgba(8,24,48,.45);display:none;align-items:center;justify-content:center;z-index:50}.modal{background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.18);padding:24px;width:min(520px,92vw);max-height:90vh;overflow:auto}.closex{float:right;background:none;border:0;font-size:22px}.profile-grid{display:grid;grid-template-columns:100px 1fr;gap:18px}.avatar{width:96px;height:96px;border-radius:18px;background:linear-gradient(135deg,#dbe7f7,#eef4fb);display:grid;place-items:center;color:var(--navy);font-size:32px;font-weight:800;overflow:hidden}.avatar img{width:100%;height:100%;object-fit:cover}.tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.taskbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.tasktitle{font-weight:800;color:var(--navy)}.miniavatar{width:38px;height:38px;border-radius:50%;background:#e9f1ff;display:inline-grid;place-items:center;overflow:hidden;font-weight:800;color:var(--navy);vertical-align:middle;margin-right:8px}.miniavatar img{width:100%;height:100%;object-fit:cover}.upload-note{font-size:12px;color:var(--muted);margin-top:6px}
 @media(max-width:980px){.nav{display:none}.hero{grid-template-columns:1fr}.copy h1{font-size:42px}.quickstats{grid-template-columns:repeat(2,1fr)}.ribbon{grid-template-columns:repeat(2,1fr)}.cards{grid-template-columns:1fr}.app{grid-template-columns:1fr}.sidebar{height:auto;position:relative}.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
 </style>
 </head>
@@ -59,15 +59,40 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px;bord
 
 <div id="dashboard" class="hidden">
   <div class="app">
-    <aside class="sidebar"><img src="/brand-logo-full.png" alt="Twanova"><button class="sidebtn active" onclick="openPage('overview',this)">Dashboard</button><button class="sidebtn" onclick="openPage('team',this)">Team Members</button><button class="sidebtn" onclick="openPage('tasks',this)">Tasks & Activity</button><button class="sidebtn" onclick="openPage('time',this)">Time & Breaks</button><button class="sidebtn" onclick="openPage('reports',this)">Friday Final Reports</button><button class="sidebtn" onclick="openPage('ai',this)">AI Assistant</button><button class="sidebtn" onclick="openPage('settings',this)">Settings</button><button class="sidebtn" style="margin-top:24px;color:#ffc59e" onclick="showMarketing()">Log Out</button></aside>
+    <aside class="sidebar"><img src="/brand-logo-full.png" alt="Twanova"><button class="sidebtn active" onclick="openPage('overview',this)">Dashboard</button><button class="sidebtn" onclick="openPage('team',this)">Team Members</button><button class="sidebtn" onclick="openPage('tasks',this)">Tasks & Activity</button><button class="sidebtn" onclick="openPage('time',this)">Time & Breaks</button><button class="sidebtn" onclick="openPage('reports',this)">Friday Final Reports</button><button class="sidebtn" onclick="openPage('ai',this)">AI Assistant</button><button class="sidebtn" onclick="openPage('myprofile',this)">My Profile</button><button class="sidebtn" onclick="openPage('settings',this)">Settings</button><button class="sidebtn" style="margin-top:24px;color:#ffc59e" onclick="showMarketing()">Log Out</button></aside>
     <main class="main">
       <div class="appbar"><div><h2 class="page-title" id="title">Agency Command Center</h2><div class="sub">Twanova Staffing Solutions • Demo Agency</div></div><span class="pill">Manager Demo</span></div>
       <section id="overview" class="page"><div class="kpis"><div class="kpi">Team Members<b id="teamCount">12</b><small class="sub">Active office team</small></div><div class="kpi">Open Tasks<b>28</b><small class="sub">6 due today</small></div><div class="kpi">Needs Review<b>4</b><small class="sub">Discrepancies flagged</small></div><div class="kpi">Weekly Activity<b>184</b><small class="sub">+12% vs last week</small></div></div><div class="grid2"><div class="panel"><h3>Recent Agency Activity</h3><table><tr><th>Team Member</th><th>Activity</th><th>Status</th></tr><tr><td>Sarah Chen</td><td>Client follow-up completed</td><td><span class="tag">Done</span></td></tr><tr><td>Mike Rivera</td><td>New contract outreach</td><td><span class="tag">In Progress</span></td></tr><tr><td>Janet Cole</td><td>Weekly account review</td><td><span class="tag">Done</span></td></tr></table></div><div class="panel"><h3>Attention Required</h3><p>2 time entries need manager review. 1 client callback is overdue. 1 team profile is incomplete.</p><button class="btn btn-light" onclick="openPage('team')">Open Team Members</button></div></div></section>
       <section id="team" class="page hidden"><div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0">Team Members</h3><div class="sub">Add, view, edit and remove members — including individual work profiles.</div></div><button class="btn btn-orange" onclick="openAddMember()">+ Add Member</button></div><div id="teamTableWrap" style="margin-top:14px"></div></div></section>
-      <section id="tasks" class="page hidden"><div class="panel"><h3>Tasks & Activity</h3><table><tr><th>Task</th><th>Assigned To</th><th>Due</th><th>Status</th></tr><tr><td>Client renewal call</td><td>Sarah Chen</td><td>Today</td><td><span class="tag">Open</span></td></tr><tr><td>Prospect follow-up</td><td>Mike Rivera</td><td>Today</td><td><span class="tag">In Progress</span></td></tr><tr><td>Weekly account recap</td><td>Janet Cole</td><td>Friday</td><td><span class="tag">Open</span></td></tr></table></div></section>
+      <section id="tasks" class="page hidden">
+        <div class="panel">
+          <div class="taskbar">
+            <div><h3 style="margin:0">Tasks & Activity</h3><div class="sub">Managers can add, edit, reassign, complete, or remove tasks.</div></div>
+            <button class="btn btn-orange" onclick="openAddTask()">+ Add Task</button>
+          </div>
+          <div id="taskTableWrap"></div>
+        </div>
+      </section>
       <section id="time" class="page hidden"><div class="grid2"><div class="panel"><h3>Time & Breaks</h3><table><tr><th>Name</th><th>Clock In</th><th>Break</th><th>Hours</th></tr><tr><td>Sarah Chen</td><td>8:02 AM</td><td>12:15–12:45</td><td>6.8</td></tr><tr><td>Mike Rivera</td><td>8:11 AM</td><td>12:30–1:00</td><td>6.6</td></tr><tr><td>Janet Cole</td><td>8:00 AM</td><td>12:00–12:30</td><td>7.0</td></tr></table></div><div class="panel"><h3>Needs Review</h3><p>Two time entries have mismatches requiring manager confirmation.</p></div></div></section>
       <section id="reports" class="page hidden"><div class="panel"><h3>Friday Final Report</h3><p class="sub">Weekly manager summary generated from team activity and task completion.</p><div class="card" style="box-shadow:none;margin-top:12px"><b>Week ending Oct. 2, 2026</b><p>184 tracked activities • 91% task completion • 4 items escalated for review • strongest performance area: client follow-up.</p></div><button class="btn btn-orange" onclick="alert('Demo: Friday Final generated')">Generate Friday Final</button></div></section>
       <section id="ai" class="page hidden"><div class="ai-box"><h3 style="margin-top:0">AI Staffing Assistant</h3><p>Ask for a manager briefing, performance summary, coaching notes or Friday debrief.</p><textarea id="q" style="min-height:90px;border:0">Give me today's manager briefing.</textarea><div class="tools"><button class="btn btn-orange" onclick="runAI()">Ask AI</button></div><p id="aiout"></p></div></section>
+      <section id="myprofile" class="page hidden">
+        <div class="panel">
+          <h3>My Profile</h3>
+          <p class="sub">A manager or recruiter can update their own profile image here.</p>
+          <div class="profile-grid">
+            <div class="avatar" id="myAvatar">DM</div>
+            <div>
+              <h3 style="margin:0">Demo Manager</h3>
+              <div class="sub">Branch Manager</div>
+              <p><b>Email:</b> manager@twanova.demo<br><b>Office:</b> Demo Agency</p>
+              <label>Upload / Change Profile Photo</label>
+              <input type="file" accept="image/*" onchange="setMyPhoto(event)">
+              <div class="upload-note">The preview stores the image in this browser so you can test the experience.</div>
+            </div>
+          </div>
+        </div>
+      </section>
       <section id="settings" class="page hidden"><div class="panel"><h3>Settings</h3><p><b>Self clock-in:</b> Enabled</p><p><b>Break tracking:</b> Enabled</p><p><b>Friday Final:</b> Every Friday at 3:00 PM</p><button class="btn btn-light" onclick="alert('Demo: Settings saved')">Save Settings</button></div></section>
     </main>
   </div>
@@ -75,25 +100,61 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px;bord
 <div id="modalWrap" class="modal-backdrop" onclick="if(event.target===this)closeModal()"><div class="modal" id="modalBody"></div></div>
 
 <script>
-let members=[
-{name:'Sarah Chen',role:'Account Manager',email:'sarah.chen@twanova.demo',phone:'570-555-0141',status:'Active',tasks:18,bio:'Handles client retention, renewals and account communication.'},
-{name:'Mike Rivera',role:'Recruiter',email:'mike.rivera@twanova.demo',phone:'570-555-0142',status:'Active',tasks:15,bio:'Sources candidates and manages prospect follow-up.'},
-{name:'Janet Cole',role:'Recruiter',email:'janet.cole@twanova.demo',phone:'570-555-0143',status:'Active',tasks:21,bio:'Owns candidate screening and weekly account recaps.'}
+let members=JSON.parse(localStorage.getItem('twanovaMembers')||'null')||[
+{name:'Sarah Chen',role:'Account Manager',email:'sarah.chen@twanova.demo',phone:'570-555-0141',status:'Active',tasks:18,bio:'Handles client retention, renewals and account communication.',photo:''},
+{name:'Mike Rivera',role:'Recruiter',email:'mike.rivera@twanova.demo',phone:'570-555-0142',status:'Active',tasks:15,bio:'Sources candidates and manages prospect follow-up.',photo:''},
+{name:'Janet Cole',role:'Recruiter',email:'janet.cole@twanova.demo',phone:'570-555-0143',status:'Active',tasks:21,bio:'Owns candidate screening and weekly account recaps.',photo:''}
 ];
+let tasks=JSON.parse(localStorage.getItem('twanovaTasks')||'null')||[
+{id:1,title:'Client renewal call',assignee:'Sarah Chen',due:'Today',status:'Open'},
+{id:2,title:'Prospect follow-up',assignee:'Mike Rivera',due:'Today',status:'In Progress'},
+{id:3,title:'Weekly account recap',assignee:'Janet Cole',due:'Friday',status:'Open'}
+];
+function saveMembers(){localStorage.setItem('twanovaMembers',JSON.stringify(members))}
+function saveTasks(){localStorage.setItem('twanovaTasks',JSON.stringify(tasks))}
 function showLogin(){marketing.classList.add('hidden');dashboard.classList.add('hidden');login.classList.remove('hidden')}
 function showMarketing(){login.classList.add('hidden');dashboard.classList.add('hidden');marketing.classList.remove('hidden')}
-function doLogin(){if(email.value==='manager@twanova.demo'&&pass.value==='Twanova2026!'){login.classList.add('hidden');marketing.classList.add('hidden');dashboard.classList.remove('hidden');renderTeamTable()}else alert('Use the demo credentials shown on the page.')}
-function openPage(id,btn){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('.sidebtn').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');const map={overview:'Agency Command Center',team:'Team Members',tasks:'Tasks & Activity',time:'Time & Breaks',reports:'Friday Final Reports',ai:'AI Assistant',settings:'Settings'};title.textContent=map[id]||'Agency Command Center'}
-function renderTeamTable(){teamCount.textContent=9+members.length;let h='<table><tr><th>Name</th><th>Role</th><th>Email</th><th>Status</th><th>Actions</th></tr>';members.forEach((m,i)=>h+=`<tr><td>${m.name}</td><td>${m.role}</td><td>${m.email}</td><td><span class="tag">${m.status}</span></td><td><div class="actionrow"><button class="smallbtn" onclick="viewMember(${i})">View Profile</button><button class="smallbtn" onclick="editMember(${i})">Edit</button><button class="smallbtn orange" onclick="removeMember(${i})">Remove</button></div></td></tr>`);teamTableWrap.innerHTML=h+'</table>'}
+function doLogin(){if(email.value==='manager@twanova.demo'&&pass.value==='Twanova2026!'){login.classList.add('hidden');marketing.classList.add('hidden');dashboard.classList.remove('hidden');renderTeamTable();renderTaskTable();renderMyPhoto()}else alert('Use the demo credentials shown on the page.')}
+function openPage(id,btn){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('.sidebtn').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');const map={overview:'Agency Command Center',team:'Team Members',tasks:'Tasks & Activity',time:'Time & Breaks',reports:'Friday Final Reports',ai:'AI Assistant',myprofile:'My Profile',settings:'Settings'};title.textContent=map[id]||'Agency Command Center'}
+function renderTeamTable(){
+  teamCount.textContent=9+members.length;
+  let h='<table><tr><th>Member</th><th>Role</th><th>Email</th><th>Status</th><th>Actions</th></tr>';
+  members.forEach((m,i)=>{
+    const av=m.photo?`<span class="miniavatar"><img src="${m.photo}"></span>`:`<span class="miniavatar">${initials(m.name)}</span>`;
+    h+=`<tr><td>${av}${m.name}</td><td>${m.role}</td><td>${m.email}</td><td><span class="tag">${m.status}</span></td><td><div class="actionrow"><button class="smallbtn" onclick="viewMember(${i})">View Profile</button><button class="smallbtn" onclick="editMember(${i})">Edit</button><button class="smallbtn orange" onclick="removeMember(${i})">Remove</button></div></td></tr>`;
+  });
+  teamTableWrap.innerHTML=h+'</table>';
+}
 function modal(h){modalBody.innerHTML=h;modalWrap.style.display='flex'}function closeModal(){modalWrap.style.display='none'}function initials(n){return n.split(' ').map(x=>x[0]).slice(0,2).join('')}
-function viewMember(i){const m=members[i];modal(`<button class="closex" onclick="closeModal()">×</button><h3>Work Profile</h3><div class="profile-grid"><div class="avatar">${initials(m.name)}</div><div><h3 style="margin:0">${m.name}</h3><div class="sub">${m.role}</div><p><b>Email:</b> ${m.email}<br><b>Phone:</b> ${m.phone}<br><b>Status:</b> ${m.status}<br><b>Weekly Tasks:</b> ${m.tasks}</p><p>${m.bio}</p></div></div><div class="tools"><button class="btn btn-light" onclick="editMember(${i})">Edit Profile</button><button class="btn btn-orange" onclick="closeModal()">Done</button></div>`)}
+function viewMember(i){
+  const m=members[i];
+  const av=m.photo?`<div class="avatar"><img src="${m.photo}"></div>`:`<div class="avatar">${initials(m.name)}</div>`;
+  modal(`<button class="closex" onclick="closeModal()">×</button><h3>Work Profile</h3><div class="profile-grid">${av}<div><h3 style="margin:0">${m.name}</h3><div class="sub">${m.role}</div><p><b>Email:</b> ${m.email}<br><b>Phone:</b> ${m.phone}<br><b>Status:</b> ${m.status}<br><b>Weekly Tasks:</b> ${m.tasks}</p><p>${m.bio}</p><label>Upload / Change Profile Photo</label><input type="file" accept="image/*" onchange="setMemberPhoto(event,${i})"><div class="upload-note">Either the team member or a manager can update this photo.</div></div></div><div class="tools"><button class="btn btn-light" onclick="editMember(${i})">Edit Profile</button><button class="btn btn-orange" onclick="closeModal()">Done</button></div>`);
+}
 function editMember(i){const m=members[i];modal(`<button class="closex" onclick="closeModal()">×</button><h3>Edit Team Member</h3><label>Name</label><input id="mName" value="${m.name}"><label>Role</label><input id="mRole" value="${m.role}"><label>Email</label><input id="mEmail" value="${m.email}"><label>Phone</label><input id="mPhone" value="${m.phone}"><label>Status</label><select id="mStatus"><option>Active</option><option>Paused</option></select><label>Bio</label><textarea id="mBio">${m.bio}</textarea><div class="tools"><button class="btn btn-orange" onclick="saveMember(${i})">Save Changes</button><button class="btn btn-light" onclick="closeModal()">Cancel</button></div>`)}
-function saveMember(i){members[i]={...members[i],name:mName.value,role:mRole.value,email:mEmail.value,phone:mPhone.value,status:mStatus.value,bio:mBio.value};closeModal();renderTeamTable()}
-function removeMember(i){if(confirm('Remove '+members[i].name+' from the team?')){members.splice(i,1);renderTeamTable()}}
+function saveMember(i){members[i]={...members[i],name:mName.value,role:mRole.value,email:mEmail.value,phone:mPhone.value,status:mStatus.value,bio:mBio.value};saveMembers();closeModal();renderTeamTable()}
+function removeMember(i){if(confirm('Remove '+members[i].name+' from the team?')){members.splice(i,1);saveMembers();renderTeamTable();renderTaskTable()}}
 function openAddMember(){modal('<button class="closex" onclick="closeModal()">×</button><h3>Add Team Member</h3><label>Name</label><input id="aName" placeholder="Full name"><label>Role</label><input id="aRole" placeholder="Recruiter / Account Manager"><label>Email</label><input id="aEmail" placeholder="email@twanova.demo"><label>Phone</label><input id="aPhone" placeholder="570-555-0000"><label>Bio</label><textarea id="aBio" placeholder="Short work profile"></textarea><div class="tools"><button class="btn btn-orange" onclick="addMember()">Add Member</button><button class="btn btn-light" onclick="closeModal()">Cancel</button></div>')}
-function addMember(){members.push({name:aName.value||'New Team Member',role:aRole.value||'Recruiter',email:aEmail.value||'new.member@twanova.demo',phone:aPhone.value||'570-555-0100',status:'Active',tasks:0,bio:aBio.value||'Newly added team member profile.'});closeModal();renderTeamTable()}
+function addMember(){members.push({name:aName.value||'New Team Member',role:aRole.value||'Recruiter',email:aEmail.value||'new.member@twanova.demo',phone:aPhone.value||'570-555-0100',status:'Active',tasks:0,bio:aBio.value||'Newly added team member profile.',photo:''});saveMembers();closeModal();renderTeamTable();renderTaskTable()}
+function fileToDataURL(file,cb){const r=new FileReader();r.onload=()=>cb(r.result);r.readAsDataURL(file)}
+function setMemberPhoto(e,i){const file=e.target.files&&e.target.files[0];if(!file)return;fileToDataURL(file,(url)=>{members[i].photo=url;saveMembers();renderTeamTable();viewMember(i)})}
+function setMyPhoto(e){const file=e.target.files&&e.target.files[0];if(!file)return;fileToDataURL(file,(url)=>{localStorage.setItem('twanovaMyPhoto',url);renderMyPhoto()})}
+function renderMyPhoto(){const url=localStorage.getItem('twanovaMyPhoto');if(!myAvatar)return;myAvatar.innerHTML=url?`<img src="${url}">`:'DM'}
+function renderTaskTable(){
+  if(!document.getElementById('taskTableWrap'))return;
+  let h='<table><tr><th>Task</th><th>Assigned To</th><th>Due</th><th>Status</th><th>Actions</th></tr>';
+  tasks.forEach((t,i)=>h+=`<tr><td class="tasktitle">${t.title}</td><td>${t.assignee}</td><td>${t.due}</td><td><span class="tag">${t.status}</span></td><td><div class="actionrow"><button class="smallbtn" onclick="editTask(${i})">Edit</button><button class="smallbtn" onclick="toggleTask(${i})">${t.status==='Completed'?'Reopen':'Complete'}</button><button class="smallbtn orange" onclick="removeTask(${i})">Remove</button></div></td></tr>`);
+  taskTableWrap.innerHTML=h+'</table>';
+}
+function memberOptions(selected=''){return members.map(m=>`<option ${m.name===selected?'selected':''}>${m.name}</option>`).join('')}
+function openAddTask(){modal(`<button class="closex" onclick="closeModal()">×</button><h3>Add Task</h3><label>Task</label><input id="tTitle" placeholder="Task description"><label>Assign To</label><select id="tAssignee">${memberOptions()}</select><label>Due</label><input id="tDue" placeholder="Today / Friday / Oct 5"><label>Status</label><select id="tStatus"><option>Open</option><option>In Progress</option><option>Completed</option></select><div class="tools"><button class="btn btn-orange" onclick="addTask()">Add Task</button><button class="btn btn-light" onclick="closeModal()">Cancel</button></div>`)}
+function addTask(){tasks.push({id:Date.now(),title:tTitle.value||'New task',assignee:tAssignee.value,due:tDue.value||'Today',status:tStatus.value});saveTasks();closeModal();renderTaskTable()}
+function editTask(i){const t=tasks[i];modal(`<button class="closex" onclick="closeModal()">×</button><h3>Edit Task</h3><label>Task</label><input id="tTitle" value="${t.title}"><label>Assign To</label><select id="tAssignee">${memberOptions(t.assignee)}</select><label>Due</label><input id="tDue" value="${t.due}"><label>Status</label><select id="tStatus"><option ${t.status==='Open'?'selected':''}>Open</option><option ${t.status==='In Progress'?'selected':''}>In Progress</option><option ${t.status==='Completed'?'selected':''}>Completed</option></select><div class="tools"><button class="btn btn-orange" onclick="saveTask(${i})">Save Task</button><button class="btn btn-light" onclick="closeModal()">Cancel</button></div>`)}
+function saveTask(i){tasks[i]={...tasks[i],title:tTitle.value,assignee:tAssignee.value,due:tDue.value,status:tStatus.value};saveTasks();closeModal();renderTaskTable()}
+function toggleTask(i){tasks[i].status=tasks[i].status==='Completed'?'Open':'Completed';saveTasks();renderTaskTable()}
+function removeTask(i){if(confirm('Remove this task?')){tasks.splice(i,1);saveTasks();renderTaskTable()}}
 function runAI(){aiout.textContent="Today's briefing: 28 open tasks, 4 items need review, Sarah Chen leads client follow-up activity, and one new team member profile still needs completion."}
-renderTeamTable();
+renderTeamTable();renderTaskTable();renderMyPhoto();
 </script>
 </body>
 </html>
