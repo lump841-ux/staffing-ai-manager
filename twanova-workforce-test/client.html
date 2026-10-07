@@ -188,8 +188,10 @@ function twAnswer(q){
  return es?"Puedo ayudarte con turnos, ubicaciones, llegadas, retrasos, reemplazos y preguntas sobre cómo usar Twanova.":"I can help with shifts, locations, arrivals, late workers, replacements, and how to use Twanova.";
 }
 function twAsk(q){if(!q||!q.trim())return;const a=document.getElementById('twAIAnswer');a.innerHTML='<b>Twanova:</b><br>'+twAnswer(q.trim());document.getElementById('twAIInput').value=''}
-const twObs=new MutationObserver(()=>twDecorateMessages());twObs.observe(document.body,{childList:true,subtree:true});
-twSetLang(localStorage.getItem('tw_lang')||'en');setTimeout(twDecorateMessages,50);
+document.addEventListener('click',()=>setTimeout(twDecorateMessages,120));
+document.addEventListener('submit',()=>setTimeout(twDecorateMessages,120));
+window.addEventListener('storage',e=>{if(e.key==='tw_shared_messages'||e.key==='tw_lang')setTimeout(twDecorateMessages,80)});
+twSetLang(localStorage.getItem('tw_lang')||'en');setTimeout(twDecorateMessages,80);
 </script>
 <script id="tw-translation-demo-seed">
 const twTranslationDemoText="Voy a llegar como diez minutos tarde porque hay mucho tráfico.";
