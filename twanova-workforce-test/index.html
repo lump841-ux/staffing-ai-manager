@@ -29,14 +29,14 @@ main{max-width:1180px;margin:-23px auto 55px;padding:0 18px}.roles{display:grid;
 <div class="step"><b>1. Client requests temps</b><span>Open Client, tap Request Temp, send a normal staffing request, then open Agency and look under Client Temp Requests.</span></div>
 <div class="step"><b>2. Temp sends a message</b><span>Open Temp, type a normal message to the agency or supervisor, then open the other portals and check the shared thread.</span></div>
 <div class="step"><b>3. Emergency replacement</b><span>Client can request an emergency replacement, or the temp can report Emergency Time Off. Agency sees that request and can use the Ready Now bench.</span></div>
-<div class="step"><b>4. Invite & profile photo</b><span>Agency can test Invite a Temp and the profile-photo onboarding flow. The existing sample temps already use real-person profile images throughout the agency view.</span></div>
+<div class="step"><b>4. Invite & profile photo</b><span>Agency can test Invite a Temp and the profile-photo onboarding flow. The existing sample temps already use real-person profile images throughout the agency view.</span></div><div class="step"><b>5. Ask Twanova + bilingual messaging</b><span>Agency and Client can ask workforce questions in English or Spanish. Temp gets shift-help AI. Use the EN / ES control inside each role portal and test translated shift messages.</span></div>
 </div>
 <div class="actions"><button class="reset" onclick="resetDemo()">Reset shared demo data</button><button class="reset" onclick="window.open('agency.html');window.open('temp.html');window.open('client.html')">Open all 3 roles</button></div>
 <p class="note">This is a front-end test prototype. Messages and requests use browser storage so the three pages can demonstrate the workflow without a production database. Billing and client pricing are intentionally excluded from the Client Supervisor portal.</p>
 </section></main>
 <script>
 function resetDemo(){
-['tw_shared_messages','tw_temp_requests','tw_emergency_requests','tw_temp_status','tw_extra_temps'].forEach(function(k){localStorage.removeItem(k)});
+['tw_shared_messages','tw_temp_requests','tw_emergency_requests','tw_temp_status','tw_extra_temps','tw_removed_temps'].forEach(function(k){localStorage.removeItem(k)});
 alert('Shared demo data reset. Open a role to start fresh.');
 }
 </script></body></html>
