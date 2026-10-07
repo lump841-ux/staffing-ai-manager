@@ -190,4 +190,15 @@ function twAnswer(q){
 function twAsk(q){if(!q||!q.trim())return;const a=document.getElementById('twAIAnswer');a.innerHTML='<b>Twanova:</b><br>'+twAnswer(q.trim());document.getElementById('twAIInput').value=''}
 const twObs=new MutationObserver(()=>twDecorateMessages());twObs.observe(document.body,{childList:true,subtree:true});
 twSetLang(localStorage.getItem('tw_lang')||'en');setTimeout(twDecorateMessages,50);
+</script>
+<script id="tw-translation-demo-seed">
+const twTranslationDemoText="Voy a llegar como diez minutos tarde porque hay mucho tráfico.";
+try{
+  let twDemoMsgs=JSON.parse(localStorage.getItem('tw_shared_messages')||'[]');
+  if(!Array.isArray(twDemoMsgs))twDemoMsgs=[];
+  if(!twDemoMsgs.some(m=>m&&m.text===twTranslationDemoText)){
+    twDemoMsgs.push({by:'Maria Lopez · Temp',text:twTranslationDemoText,t:'8:03 AM'});
+    localStorage.setItem('tw_shared_messages',JSON.stringify(twDemoMsgs));
+  }
+}catch(e){}
 </script></body></html>
